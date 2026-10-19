@@ -1,0 +1,295 @@
+@import 'tailwindcss';
+
+/*
+ * Two skins over one layout.
+ *
+ * `.doc` owns every property that affects geometry (font, sizes, margins,
+ * paddings, borders widths). `[data-skin='raw']` and `[data-skin='ink']` may
+ * only change paint: colors, backgrounds, decorations, shadows, masks.
+ * Breaking this rule makes the layers drift apart under the scratch mask.
+ */
+
+:root {
+  --ink-bg: #0b0b0f;
+  --ink-text: #ebe7df;
+  --ink-muted: #9a96a6;
+  --ink-lime: #c6f432;
+  --ink-cyan: #5ee7ff;
+  --ink-violet: #a78bfa;
+  --ink-pink: #ff6ad5;
+}
+
+html,
+body {
+  background: #fff;
+  color: #000;
+}
+
+/* ---------- shared layout (both skins) ---------- */
+
+.stage {
+  position: relative;
+  min-height: 100svh;
+}
+
+.doc {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 16px 16px 88px;
+  font-family: var(--font-serif), 'Times New Roman', Times, serif;
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 640px) {
+  .doc {
+    padding: 40px 32px 112px;
+    font-size: 17px;
+  }
+}
+
+.doc h1 {
+  width: fit-content;
+  margin: 0.5em 0 0.2em;
+  font-size: 2em;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.doc h2 {
+  margin: 1.4em 0 0.5em;
+  font-size: 1.5em;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.doc h3 {
+  margin: 1.1em 0 0.2em;
+  font-size: 1.17em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.doc p {
+  margin: 0.6em 0;
+}
+
+.doc ul {
+  margin: 0.4em 0 1em;
+  padding-left: 1.5em;
+  list-style: disc;
+}
+
+.doc li {
+  margin: 0.25em 0;
+}
+
+.doc dl > div {
+  margin: 0.55em 0;
+}
+
+.doc dt {
+  font-weight: 700;
+}
+
+.doc dd {
+  margin-left: 1.5em;
+}
+
+.doc hr {
+  height: 0;
+  margin: 1.5em 0;
+  border: 1px inset;
+}
+
+.doc strong {
+  font-weight: 700;
+}
+
+.doc em {
+  font-style: italic;
+}
+
+.doc small {
+  font-size: 0.83em;
+}
+
+.doc a {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* ---------- raw skin: "no CSS at all" ---------- */
+
+[data-skin='raw'] a {
+  color: #0000ee;
+}
+
+[data-skin='raw'] a:visited {
+  color: #551a8b;
+}
+
+[data-skin='raw'] a:hover {
+  text-decoration-thickness: 2px;
+}
+
+[data-skin='raw'] a:active {
+  color: #ee0000;
+}
+
+[data-skin='raw'] hr {
+  border-color: #c0c0c0;
+}
+
+[data-skin='raw'] .dot {
+  color: #008000;
+}
+
+/* ---------- ink skin: the design underneath ---------- */
+
+.ink-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  color: var(--ink-text);
+  background-color: var(--ink-bg);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(60rem 40rem at 90% -10%, rgb(167 139 250 / 0.3), transparent 60%),
+    radial-gradient(48rem 36rem at -15% 35%, rgb(94 231 255 / 0.16), transparent 60%),
+    radial-gradient(40rem 32rem at 110% 85%, rgb(255 106 213 / 0.16), transparent 60%);
+  /* Hidden until the canvas mask says otherwise; JS swaps in the mask image. */
+  mask-image: linear-gradient(transparent, transparent);
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+}
+
+[data-skin='ink'] h1 {
+  color: transparent;
+  background: linear-gradient(100deg, var(--ink-lime), var(--ink-cyan) 45%, var(--ink-violet) 75%, var(--ink-pink));
+  background-size: 200% 100%;
+  background-clip: text;
+  animation: shimmer 8s ease-in-out infinite alternate;
+}
+
+[data-skin='ink'] h2 {
+  color: var(--ink-cyan);
+  background: linear-gradient(90deg, var(--ink-cyan), transparent 70%) left bottom / 100% 1px no-repeat;
+}
+
+[data-skin='ink'] h3 {
+  color: #fff;
+}
+
+[data-skin='ink'] .lead strong {
+  color: var(--ink-lime);
+}
+
+[data-skin='ink'] .meta,
+[data-skin='ink'] dd,
+[data-skin='ink'] .hint,
+[data-skin='ink'] footer {
+  color: var(--ink-muted);
+}
+
+[data-skin='ink'] dt {
+  color: var(--ink-violet);
+}
+
+[data-skin='ink'] li::marker {
+  color: var(--ink-pink);
+}
+
+[data-skin='ink'] a {
+  color: var(--ink-lime);
+  text-decoration-color: rgb(198 244 50 / 0.35);
+}
+
+[data-skin='ink'] h3 a {
+  color: #fff;
+  text-decoration-color: transparent;
+  background: linear-gradient(transparent 62%, rgb(255 106 213 / 0.45) 0);
+}
+
+[data-skin='ink'] hr {
+  border-color: rgb(255 255 255 / 0.12);
+}
+
+[data-skin='ink'] .badge {
+  color: var(--ink-lime);
+}
+
+[data-skin='ink'] .dot {
+  color: var(--ink-lime);
+  text-shadow: 0 0 10px var(--ink-lime);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: 100% 0;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-skin='ink'] h1,
+  [data-skin='ink'] .dot {
+    animation: none;
+  }
+}
+
+/* ---------- toggle ---------- */
+
+.toggle {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10;
+  padding: 6px 12px;
+  font: 13px/1.2 system-ui, sans-serif;
+  color: #000;
+  cursor: pointer;
+  background: #efefef;
+  border: 1px solid #767676;
+  border-radius: 3px;
+  transition:
+    background 0.3s,
+    color 0.3s,
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+
+.toggle:hover {
+  background: #e5e5e5;
+}
+
+.toggle:focus-visible {
+  outline: 2px solid #0000ee;
+  outline-offset: 2px;
+}
+
+[data-mode='ink'] .toggle {
+  color: var(--ink-bg);
+  background: var(--ink-lime);
+  border-color: var(--ink-lime);
+  border-radius: 999px;
+  box-shadow: 0 0 24px rgb(198 244 50 / 0.45);
+}
+
+@media print {
+  .ink-layer,
+  .toggle,
+  .hint {
+    display: none;
+  }
+}
