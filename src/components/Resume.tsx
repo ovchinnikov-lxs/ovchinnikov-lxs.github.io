@@ -41,7 +41,7 @@ export function Resume({ skin }: { skin: Skin }) {
       <header className="hero">
         <Image
           className="avatar"
-          src="/avatar.jpg"
+          src="/avatar.webp"
           width={72}
           height={72}
           alt={skin === 'raw' ? `${profile.name}, ${profile.title}` : ''}

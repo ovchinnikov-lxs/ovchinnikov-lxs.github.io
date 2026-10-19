@@ -32,7 +32,7 @@ site's own fonts, and committed to `src/app/` and `public/`:
 pnpm images   # needs Playwright Chromium and Python Pillow
 ```
 
-Photo: `public/avatar.jpg` (site, schema.org) and `scripts/images/avatar.jpg` (OG card).
+Photo: `public/avatar.webp` (site, schema.org) and `scripts/images/avatar.webp` (OG card).
 
 ## Deploy
 

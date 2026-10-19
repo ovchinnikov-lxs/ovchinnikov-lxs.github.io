@@ -20,14 +20,14 @@ const htmlClass = index.match(/<html[^>]*class="([^"]+)"/)[1];
 const head = css.map((href) => `<link rel="stylesheet" href="${href}" />`).join('');
 
 mkdirSync(tmp, { recursive: true });
-for (const f of ['og.html', 'icon.html', 'templates.js', 'avatar.jpg']) {
+for (const f of ['og.html', 'icon.html', 'templates.js', 'avatar.webp']) {
   let body = readFileSync(join(here, f));
   if (f.endsWith('.html'))
     body = body.toString().replace('<!--HEAD-->', head).replace('<html>', `<html class="${htmlClass}">`);
   writeFileSync(join(tmp, f), body);
 }
 
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.jpg': 'image/jpeg' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
 const server = createServer((req, res) => {
   try {
     const file = join(out, decodeURIComponent(req.url.split('?')[0]));
