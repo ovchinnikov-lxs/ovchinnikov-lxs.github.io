@@ -9,6 +9,20 @@ const brushFor = (viewport: number) => Math.min(240, Math.max(110, viewport * 0.
 /** Scratches are permanent; the fringe keeps shimmering this long after the last input, then freezes. */
 const SETTLE_MS = 1600;
 const FIELD_MAX = 1.5;
+/** Brush inertia: spring towards the pointer, then damping. */
+const SPRING = 0.16;
+const DAMP = 0.8;
+/**
+ * Spreading after a stroke: every painted cell gets a travel budget (px) and creeps outwards,
+ * paying more per cell downwards and much more upwards — so it reaches the screen edges
+ * sideways, goes down noticeably less, and up barely.
+ */
+const REACH = 1600;
+const COST_X = CELL;
+const COST_DOWN = CELL * 3.2;
+const COST_UP = CELL * 9;
+/** Chance a cell skips spreading on a given frame: keeps the front ragged and organic. */
+const SPREAD_SKIP = 0.45;
 const WIPE_MS = 1100;
 /** Edge band (in field units) that gets the iridescent fringe. */
 const FRINGE = 0.11;
@@ -39,7 +53,8 @@ function paletteAt(t: number): [number, number, number] {
  * absolutely on top of it. A per-cell scalar field (painted by the pointer)
  * is dithered against per-cell noise into a pixel clip-path, and the cells on its
  * edge are drawn as a shimmering fringe — like an image being diffused in.
- * Scratches stay: whatever the pointer has uncovered remains uncovered.
+ * Scratches stay and slowly spread: sideways to the screen edges, down less, up barely.
+ * The brush itself has inertia: it trails the pointer and overshoots a little.
  * Only the clip changes, so nothing reflows and text never moves (no CLS).
  */
 export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) {
@@ -64,6 +79,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     let field = new Float32Array(1);
     let noise = new Float32Array(1);
     let phase = new Float32Array(1);
+    let reach = new Float32Array(1);
     // Rows that may hold paint: only this band is simulated, encoded and drawn.
     let band0 = Infinity;
     let band1 = -1;
@@ -71,6 +87,10 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     let current: Mode = 'raw';
     let wipe: { from: Mode; to: Mode; cx: number; cy: number; t: number } | null = null;
     let last: { x: number; y: number } | null = null;
+    // Where the pointer is (aim) and where the inertial brush is (pos).
+    let aim: { x: number; y: number } | null = null;
+    let pos: { x: number; y: number } | null = null;
+    const vel = { x: 0, y: 0 };
     let touch: { cx: number; cy: number } | null = null;
     let frame = 0;
     let brush = brushFor(window.innerWidth);
@@ -87,9 +107,14 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       const or = rows;
       cols = nc;
       rows = nr;
+      const oldReach = reach;
       field = new Float32Array(cols * rows);
+      reach = new Float32Array(cols * rows);
       for (let y = 0; y < Math.min(rows, or); y++)
-        for (let x = 0; x < Math.min(cols, oc); x++) field[y * cols + x] = old[y * oc + x];
+        for (let x = 0; x < Math.min(cols, oc); x++) {
+          field[y * cols + x] = old[y * oc + x];
+          reach[y * cols + x] = oldReach[y * oc + x];
+        }
       noise = new Float32Array(cols * rows);
       phase = new Float32Array(cols * rows);
       for (let i = 0; i < noise.length; i++) {
@@ -122,6 +147,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
           const d2 = (xx + 0.5 - cx) ** 2 + (yy + 0.5 - cy) ** 2;
           const i = yy * cols + xx;
           field[i] = Math.min(FIELD_MAX, field[i] + 0.55 * Math.exp(-d2 / s2));
+          reach[i] = REACH;
         }
       }
     };
@@ -150,8 +176,54 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       gctx.clearRect(0, 0, glow.width, glow.height);
     };
 
+    /** The brush trails the pointer with a little overshoot; returns whether it still moves. */
+    const stepBrush = () => {
+      if (!aim) return false;
+      if (!pos) {
+        pos = { ...aim };
+        vel.x = vel.y = 0;
+        last = null;
+      }
+      vel.x = (vel.x + (aim.x - pos.x) * SPRING) * DAMP;
+      vel.y = (vel.y + (aim.y - pos.y) * SPRING) * DAMP;
+      pos.x += vel.x;
+      pos.y += vel.y;
+      const moving = Math.hypot(vel.x, vel.y) > 0.2 || Math.hypot(aim.x - pos.x, aim.y - pos.y) > 0.5;
+      if (moving) stroke(pos.x, pos.y);
+      return moving;
+    };
+
+    /** Lets uncovered areas creep outwards: values are copied (not diluted) while the budget lasts. */
+    const spread = (r0: number, r1: number) => {
+      const base = r0 * cols;
+      const pf = field.slice(base, (r1 + 1) * cols);
+      const pr = reach.slice(base, (r1 + 1) * cols);
+      let grew = false;
+      const offer = (i: number, x: number, y: number, cost: number) => {
+        if (x < 0 || x >= cols || y < r0 || y > r1) return;
+        const j = (y - r0) * cols + x;
+        const budget = pr[j] - cost;
+        if (budget <= 0 || pf[j] <= field[i] + 0.01) return;
+        field[i] = pf[j];
+        reach[i] = Math.max(reach[i], budget);
+        grew = true;
+      };
+      for (let y = r0; y <= r1; y++) {
+        for (let x = 0; x < cols; x++) {
+          if (Math.random() < SPREAD_SKIP) continue;
+          const i = y * cols + x;
+          offer(i, x - 1, y, COST_X);
+          offer(i, x + 1, y, COST_X);
+          offer(i, x, y - 1, COST_DOWN);
+          offer(i, x, y + 1, COST_UP);
+        }
+      }
+      return grew;
+    };
+
     const draw = (now: number) => {
       frame = 0;
+      const moving = stepBrush();
       let wipeR = 0;
       let wipeBand = 1;
       let wiping = false;
@@ -176,10 +248,12 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         setStatic(current);
         return;
       }
+      const grew = !wiping && !reduceMotion && spread(r0, r1);
       const h = r1 - r0 + 1;
       const fringeImg = new ImageData(cols, h);
       const fx = fringeImg.data;
       const path: string[] = [];
+      const onMap = new Uint8Array(cols * h);
       const t = now * 0.00012;
       const calm = Math.max(0, 1 - (now - lastInput) / SETTLE_MS);
       const shimmer = reduceMotion ? 0 : 0.07 * calm;
@@ -206,6 +280,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
           const v = target === 'ink' ? base - f : base + f;
           const thr = noise[i] + Math.sin(now * 0.006 + phase[i]) * shimmer;
           const on = v > thr;
+          if (on) onMap[(y - r0) * cols + x] = 1;
           if (on && run < 0) run = x;
           if (!on && run >= 0) {
             path.push(`M${run * CELL} ${y * CELL}h${(x - run) * CELL}v${CELL}h${(run - x) * CELL}z`);
@@ -222,6 +297,27 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
           } else fx[o + 3] = 0;
         }
         if (run >= 0) path.push(`M${run * CELL} ${y * CELL}h${(cols - run) * CELL}v${CELL}h${(run - cols) * CELL}z`);
+      }
+
+      // Thin iridescent outline on every boundary, so a sharp spreading front glows too.
+      // It sits on the side that is not being uncovered (raw in raw mode, ink in ink mode).
+      const side = target === 'ink' && !wiping ? 1 : 0;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0, j = y * cols; x < cols; x++, j++) {
+          if (onMap[j] !== side) continue;
+          const edge =
+            (x > 0 && onMap[j - 1] !== side) ||
+            (x < cols - 1 && onMap[j + 1] !== side) ||
+            (y > 0 && onMap[j - cols] !== side) ||
+            (y < h - 1 && onMap[j + cols] !== side);
+          const o = j * 4;
+          if (!edge || fx[o + 3] > 0) continue;
+          const [r, g, b] = paletteAt(t * 6 + (x + (y + r0) * 0.6) * 0.012);
+          fx[o] = r;
+          fx[o + 1] = g;
+          fx[o + 2] = b;
+          fx[o + 3] = 200;
+        }
       }
 
       if (!alive && !wiping) {
@@ -250,28 +346,29 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       fctx.putImageData(fringeImg, 0, 0);
       gctx.clearRect(0, 0, cols, h);
       gctx.drawImage(fringe, 0, 0);
-      if (wiping || calm > 0) schedule();
+      if (wiping || calm > 0 || grew || moving) schedule();
     };
 
     function schedule() {
       if (!frame) frame = requestAnimationFrame(draw);
     }
 
+    const release = () => {
+      aim = pos = last = null;
+    };
     const onPointerMove = (e: PointerEvent) => {
       if (e.pointerType === 'touch') touch = { cx: e.clientX, cy: e.clientY };
-      const p = toStage(e.clientX, e.clientY);
-      stroke(p.x, p.y);
+      aim = toStage(e.clientX, e.clientY);
+      schedule();
     };
-    const onPointerLeave = () => {
-      last = null;
-    };
+    const onPointerLeave = release;
     // While a finger scrolls the page, it stays put on screen but travels through the document.
     const onTouchStart = (e: TouchEvent) => {
       const t = e.touches[0];
       touch = { cx: t.clientX, cy: t.clientY };
-      last = null;
-      const p = toStage(t.clientX, t.clientY);
-      stroke(p.x, p.y);
+      pos = last = null;
+      aim = toStage(t.clientX, t.clientY);
+      schedule();
     };
     const onTouchMove = (e: TouchEvent) => {
       const t = e.touches[0];
@@ -279,18 +376,19 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     };
     const onTouchEnd = () => {
       touch = null;
-      last = null;
+      release();
     };
     const onScroll = () => {
       if (!touch) return;
-      const p = toStage(touch.cx, touch.cy);
-      stroke(p.x, p.y);
+      aim = toStage(touch.cx, touch.cy);
+      schedule();
     };
 
     api.current = {
       wipe: (to, clientX, clientY) => {
         const p = toStage(clientX, clientY);
         field.fill(0);
+        reach.fill(0);
         lastInput = performance.now();
         if (reduceMotion) {
           current = to;
@@ -314,9 +412,10 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         }
         const k = Math.min(1, p);
         const w = stage.offsetWidth;
-        stroke(w * (0.06 + 0.88 * k), 150 + Math.sin(k * Math.PI * 2.2) * 60);
+        aim = { x: w * (0.06 + 0.88 * k), y: 150 + Math.sin(k * Math.PI * 2.2) * 60 };
+        schedule();
         if (p < 1) intro = requestAnimationFrame(run);
-        else last = null;
+        else if (!touch) release();
       };
       intro = requestAnimationFrame(run);
     }
