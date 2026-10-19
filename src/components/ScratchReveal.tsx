@@ -6,8 +6,12 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 const CELL = 8;
 /** Brush radius, CSS px: a share of the viewport width, clamped. */
 const brushFor = (viewport: number) => Math.min(240, Math.max(110, viewport * 0.17));
-/** Scratches are permanent; the fringe keeps shimmering this long after the last input, then freezes. */
+/** Edges flicker harder right after input, then settle to a calmer flicker that never stops. */
 const SETTLE_MS = 1600;
+/** Edge cells jump in and out of the revealed area in discrete steps of this length. */
+const FLICKER_MS = 120;
+/** Idle frames (only the flicker is running) are throttled to this interval, and only on-screen rows are redrawn. */
+const IDLE_FRAME_MS = 1000 / 15;
 const FIELD_MAX = 1.5;
 /** Brush inertia: spring towards the pointer, then damping. */
 const SPRING = 0.16;
@@ -31,7 +35,7 @@ const SPREAD_CHANCE = 0.32;
 const DRAG_SLOP = 6;
 const TAP_SLOP = 10;
 const TAP_MS = 450;
-const WIPE_MS = 1100;
+const WIPE_MS = 2600;
 /** Edge band (in field units) that gets the iridescent fringe. */
 const FRINGE = 0.11;
 
@@ -266,18 +270,30 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       return grew;
     };
 
+    // Persistent per-row results, so idle frames can redraw only the rows on screen.
+    let rowPath: string[] = [];
+    let onAll = new Uint8Array(1);
+    let img: ImageData | null = null;
+    let imgR0 = 0;
+    let lastIdle = 0;
+
+    const visibleRows = (): [number, number] => {
+      const top = stage.getBoundingClientRect().top;
+      return [Math.max(0, Math.floor(-top / CELL) - 2), Math.min(rows - 1, Math.ceil((innerHeight - top) / CELL) + 2)];
+    };
+
     const draw = (now: number) => {
       frame = 0;
       const moving = stepBrush();
       let wipeR = 0;
-      let wipeBand = 1;
+      const wipeBand = 16;
       let wiping = false;
       if (wipe) {
         // rAF timestamps can predate the click that started the wipe.
         const p = Math.min(1, Math.max(0, (now - wipe.t) / WIPE_MS));
-        const eased = 1 - Math.pow(1 - p, 3);
+        // Ease in-out, so the reveal is slow enough to watch.
+        const eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
         const far = Math.hypot(Math.max(wipe.cx, cols - wipe.cx), Math.max(wipe.cy, rows - wipe.cy));
-        wipeBand = 10;
         wipeR = (far + wipeBand) * eased;
         if (p >= 1) {
           current = wipe.to;
@@ -295,19 +311,37 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       }
       const grew = !wiping && !reduceMotion && spread(r0, r1);
       const h = r1 - r0 + 1;
-      const fringeImg = new ImageData(cols, h);
-      const fx = fringeImg.data;
-      const path: string[] = [];
-      const onMap = new Uint8Array(cols * h);
-      const t = now * 0.00012;
       const calm = Math.max(0, 1 - (now - lastInput) / SETTLE_MS);
-      const shimmer = reduceMotion ? 0 : 0.07 * calm;
-      let alive = false;
+      const active = wiping || grew || moving || calm > 0;
+
+      // Full frame: the whole band. Idle frame: just the flicker, on-screen rows only, throttled.
+      const full = active || !img || imgR0 !== r0 || img.height !== h || img.width !== cols;
+      let p0 = r0;
+      let p1 = r1;
+      if (!full) {
+        if (now - lastIdle < IDLE_FRAME_MS) return schedule();
+        lastIdle = now;
+        const [v0, v1] = visibleRows();
+        p0 = Math.max(r0, v0);
+        p1 = Math.min(r1, v1);
+        if (p1 < p0) return schedule();
+      } else {
+        img = new ImageData(cols, h);
+        imgR0 = r0;
+        if (onAll.length !== cols * rows) onAll = new Uint8Array(cols * rows);
+        if (rowPath.length !== rows) rowPath = new Array<string>(rows).fill('');
+      }
+
+      const fx = img!.data;
+      const t = now * 0.00012;
+      const amp = reduceMotion ? 0 : 0.05 + 0.07 * calm;
+      let alive = !full;
       let next0 = Infinity;
       let next1 = -1;
 
-      for (let y = r0; y <= r1; y++) {
+      for (let y = p0; y <= p1; y++) {
         let run = -1;
+        let row = '';
         for (let x = 0, i = y * cols; x < cols; x++, i++) {
           const f = field[i];
           if (f > 0) {
@@ -323,12 +357,17 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
             base = wipe.to === 'ink' ? c : 1 - c;
           } else base = current === 'ink' ? 1 : 0;
           const v = target === 'ink' ? base - f : base + f;
-          const thr = noise[i] + Math.sin(now * 0.006 + phase[i]) * shimmer;
+          // Abrupt flicker: each cell jumps to a new random offset every FLICKER_MS, out of phase with its neighbours.
+          const step = Math.floor((now + phase[i] * 100) / FLICKER_MS);
+          let hsh = Math.imul(i ^ (step * 0x9e3779b1), 0x85ebca6b);
+          hsh ^= hsh >>> 13;
+          const jitter = ((hsh >>> 0) / 4294967295) * 2 - 1;
+          const thr = noise[i] + jitter * amp;
           const on = v > thr;
-          if (on) onMap[(y - r0) * cols + x] = 1;
+          onAll[i] = on ? 1 : 0;
           if (on && run < 0) run = x;
           if (!on && run >= 0) {
-            path.push(`M${run * CELL} ${y * CELL}h${(x - run) * CELL}v${CELL}h${(run - x) * CELL}z`);
+            row += `M${run * CELL} ${y * CELL}h${(x - run) * CELL}v${CELL}h${(run - x) * CELL}z`;
             run = -1;
           }
           const o = ((y - r0) * cols + x) * 4;
@@ -341,23 +380,24 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
             fx[o + 3] = 255 * (1 - edge / FRINGE);
           } else fx[o + 3] = 0;
         }
-        if (run >= 0) path.push(`M${run * CELL} ${y * CELL}h${(cols - run) * CELL}v${CELL}h${(run - cols) * CELL}z`);
+        if (run >= 0) row += `M${run * CELL} ${y * CELL}h${(cols - run) * CELL}v${CELL}h${(run - cols) * CELL}z`;
+        rowPath[y] = row;
       }
 
       // Thin iridescent outline on every boundary, so a sharp spreading front glows too.
       // It sits on the side that is not being uncovered (raw in raw mode, ink in ink mode).
       const side = target === 'ink' && !wiping ? 1 : 0;
-      for (let y = 0; y < h; y++) {
-        for (let x = 0, j = y * cols; x < cols; x++, j++) {
-          if (onMap[j] !== side) continue;
+      for (let y = p0; y <= p1; y++) {
+        for (let x = 0, i = y * cols; x < cols; x++, i++) {
+          if (onAll[i] !== side) continue;
           const edge =
-            (x > 0 && onMap[j - 1] !== side) ||
-            (x < cols - 1 && onMap[j + 1] !== side) ||
-            (y > 0 && onMap[j - cols] !== side) ||
-            (y < h - 1 && onMap[j + cols] !== side);
-          const o = j * 4;
+            (x > 0 && onAll[i - 1] !== side) ||
+            (x < cols - 1 && onAll[i + 1] !== side) ||
+            (y > r0 && onAll[i - cols] !== side) ||
+            (y < r1 && onAll[i + cols] !== side);
+          const o = ((y - r0) * cols + x) * 4;
           if (!edge || fx[o + 3] > 0) continue;
-          const [r, g, b] = paletteAt(t * 6 + (x + (y + r0) * 0.6) * 0.012);
+          const [r, g, b] = paletteAt(t * 6 + (x + y * 0.6) * 0.012);
           fx[o] = r;
           fx[o + 1] = g;
           fx[o + 2] = b;
@@ -370,37 +410,66 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         setStatic(current);
         return;
       }
-      band0 = next0;
-      band1 = next1;
+      if (full) {
+        band0 = next0;
+        band1 = next1;
+      }
 
+      const path = rowPath.slice(r0, r1 + 1);
       if (target === 'ink' && !wiping) {
         // Ink is fully shown above and below the band.
         const W = cols * CELL;
         path.push(`M0 0h${W}v${r0 * CELL}h${-W}z`);
         path.push(`M0 ${(r1 + 1) * CELL}h${W}V${rows * CELL}h${-W}z`);
       }
+      const d = path.join('');
       // An empty path() is invalid; a zero-area one hides everything.
-      setClip(`path('${path.length ? path.join('') : 'M0 0z'}')`);
+      setClip(`path('${d || 'M0 0z'}')`);
 
-      for (const c of [fringe, glow]) {
-        if (c.height !== h) c.height = h;
-        if (c.width !== cols) c.width = cols;
-        c.style.top = `${r0 * CELL}px`;
-        c.style.height = `${h * CELL}px`;
+      if (full) {
+        for (const c of [fringe, glow]) {
+          if (c.height !== h) c.height = h;
+          if (c.width !== cols) c.width = cols;
+          c.style.top = `${r0 * CELL}px`;
+          c.style.height = `${h * CELL}px`;
+        }
+        fctx.putImageData(img!, 0, 0);
+        gctx.clearRect(0, 0, cols, h);
+        gctx.drawImage(fringe, 0, 0);
+      } else {
+        const y = p0 - r0;
+        const hh = p1 - p0 + 1;
+        fctx.putImageData(img!, 0, 0, 0, y, cols, hh);
+        gctx.clearRect(0, y, cols, hh);
+        gctx.drawImage(fringe, 0, y, cols, hh, 0, y, cols, hh);
       }
-      fctx.putImageData(fringeImg, 0, 0);
-      gctx.clearRect(0, 0, cols, h);
-      gctx.drawImage(fringe, 0, 0);
-      if (wiping || calm > 0 || grew || moving) schedule();
+      // Keep running: edges flicker forever (idle frames are cheap); stop only for reduced motion.
+      if (active || !reduceMotion) schedule();
     };
 
     function schedule() {
       if (!frame) frame = requestAnimationFrame(draw);
     }
 
-    /** A click / tap drops ink that then spreads on its own. */
+    /** A click / tap drops ink that then spreads on its own: random size, splatter and sometimes a drip. */
     const drop = (x: number, y: number) => {
-      splat(x, y, brush * 0.55, 1.4, reduceMotion ? 0 : REACH);
+      const size = brush * (0.25 + Math.random() * 0.6);
+      const budget = reduceMotion ? 0 : REACH * (0.35 + Math.random() * 0.65);
+      splat(x, y, size, 1.4, budget);
+      const drops = 2 + Math.floor(Math.random() * 5);
+      for (let k = 0; k < drops; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const dist = size * (0.6 + Math.random() * 1.4);
+        splat(x + Math.cos(a) * dist, y + Math.sin(a) * dist, size * (0.15 + Math.random() * 0.35), 1.2, budget * 0.5);
+      }
+      if (Math.random() < 0.5) {
+        const a = Math.random() * Math.PI * 2;
+        const len = size * (1 + Math.random() * 2);
+        for (let k = 1; k <= 8; k++) {
+          const q = k / 8;
+          splat(x + Math.cos(a) * len * q, y + Math.sin(a) * len * q, size * 0.2 * (1 - q * 0.6), 1.1, budget * 0.4);
+        }
+      }
       lastInput = performance.now();
       schedule();
     };
