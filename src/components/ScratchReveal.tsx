@@ -35,7 +35,7 @@ const SPREAD_CHANCE = 0.32;
 const DRAG_SLOP = 6;
 const TAP_SLOP = 10;
 const TAP_MS = 450;
-const WIPE_MS = 2600;
+const WIPE_MS = 600;
 /** Edge band (in field units) that gets the iridescent fringe. */
 const FRINGE = 0.11;
 
@@ -291,8 +291,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       if (wipe) {
         // rAF timestamps can predate the click that started the wipe.
         const p = Math.min(1, Math.max(0, (now - wipe.t) / WIPE_MS));
-        // Ease in-out, so the reveal is slow enough to watch.
-        const eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        const eased = 1 - Math.pow(1 - p, 3);
         const far = Math.hypot(Math.max(wipe.cx, cols - wipe.cx), Math.max(wipe.cy, rows - wipe.cy));
         wipeR = (far + wipeBand) * eased;
         if (p >= 1) {
@@ -451,24 +450,20 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       if (!frame) frame = requestAnimationFrame(draw);
     }
 
-    /** A click / tap drops ink that then spreads on its own: random size, splatter and sometimes a drip. */
+    /** A click / tap drops one ink blob that then spreads on its own: random size and a slightly irregular, stretched shape. */
     const drop = (x: number, y: number) => {
-      const size = brush * (0.25 + Math.random() * 0.6);
-      const budget = reduceMotion ? 0 : REACH * (0.35 + Math.random() * 0.65);
-      splat(x, y, size, 1.4, budget);
-      const drops = 2 + Math.floor(Math.random() * 5);
-      for (let k = 0; k < drops; k++) {
-        const a = Math.random() * Math.PI * 2;
-        const dist = size * (0.6 + Math.random() * 1.4);
-        splat(x + Math.cos(a) * dist, y + Math.sin(a) * dist, size * (0.15 + Math.random() * 0.35), 1.2, budget * 0.5);
-      }
-      if (Math.random() < 0.5) {
-        const a = Math.random() * Math.PI * 2;
-        const len = size * (1 + Math.random() * 2);
-        for (let k = 1; k <= 8; k++) {
-          const q = k / 8;
-          splat(x + Math.cos(a) * len * q, y + Math.sin(a) * len * q, size * 0.2 * (1 - q * 0.6), 1.1, budget * 0.4);
-        }
+      const size = brush * (0.3 + Math.random() * 0.45);
+      const budget = reduceMotion ? 0 : REACH * (0.4 + Math.random() * 0.6);
+      const angle = Math.random() * Math.PI * 2;
+      const stretch = 1 + Math.random() * 0.8;
+      // A few overlapping lobes along a random axis merge into one organic blob.
+      const lobes = 3 + Math.floor(Math.random() * 3);
+      for (let k = 0; k < lobes; k++) {
+        const along = (k / (lobes - 1) - 0.5) * size * (stretch - 0.6);
+        const across = (Math.random() - 0.5) * size * 0.35;
+        const lx = x + Math.cos(angle) * along - Math.sin(angle) * across;
+        const ly = y + Math.sin(angle) * along + Math.cos(angle) * across;
+        splat(lx, ly, size * (0.65 + Math.random() * 0.3), 1.1, budget);
       }
       lastInput = performance.now();
       schedule();
@@ -543,6 +538,8 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     api.current = {
       wipe: (to, clientX, clientY) => {
         const p = toStage(clientX, clientY);
+        // Toggling again mid-wipe: settle the running wipe first, then start from its end state.
+        if (wipe) current = wipe.to;
         field.fill(0);
         reach.fill(0);
         lastInput = performance.now();
