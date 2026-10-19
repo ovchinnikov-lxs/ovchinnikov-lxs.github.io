@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import {
   certificates,
   contacts,
@@ -38,6 +39,14 @@ export function Resume({ skin }: { skin: Skin }) {
   return (
     <div className="doc" data-skin={skin}>
       <header className="hero">
+        <Image
+          className="avatar"
+          src="/avatar.jpg"
+          width={72}
+          height={72}
+          alt={skin === 'raw' ? `${profile.name}, ${profile.title}` : ''}
+          priority
+        />
         <p className="eyebrow">
           {profile.title} · {profile.stack}
         </p>

@@ -23,6 +23,17 @@ All text lives in `src/content.ts` and mirrors the CV in Google Docs (`CV_URL`).
 Skins must only change paint, never geometry — see the note at the top of
 `src/app/globals.css`.
 
+## Images (favicon, app icons, Open Graph)
+
+Rendered from the HTML templates in `scripts/images/` with Playwright, using the
+site's own fonts, and committed to `src/app/` and `public/`:
+
+```bash
+pnpm images   # needs Playwright Chromium and Python Pillow
+```
+
+Photo: `public/avatar.jpg` (site, schema.org) and `scripts/images/avatar.jpg` (OG card).
+
 ## Deploy
 
 Push to `master` → GitHub Actions builds and publishes `./out` to the `gh-pages`

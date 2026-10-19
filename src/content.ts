@@ -8,6 +8,34 @@ export const CV_URL =
 /** Flip to false to hide the "open to opportunities" badge. */
 export const OPEN_TO_WORK = true;
 
+export const seo = {
+  title: 'Aleksandr Ovchinnikov — Frontend Engineer (Vue, Nuxt, Angular, React)',
+  description:
+    'Aleksandr Ovchinnikov — Frontend Engineer with 6+ years building production web apps with Vue/Nuxt, Angular, React/Next.js and TypeScript. Frontend architecture, performance, CI/CD, multi-brand systems. Based in Lisbon, Portugal — open to new opportunities.',
+  keywords: [
+    'Aleksandr Ovchinnikov',
+    'Alexander Ovchinnikov',
+    'Александр Овчинников',
+    'ovchinnikov-lxs',
+    'Frontend Engineer',
+    'Frontend Developer',
+    'Senior Frontend Developer',
+    'Vue.js developer',
+    'Nuxt developer',
+    'Angular developer',
+    'React developer',
+    'Next.js developer',
+    'TypeScript',
+    'Frontend architecture',
+    'Web performance',
+    'Lisbon',
+    'Portugal',
+    'Portfolio',
+    'CV',
+  ],
+  alternateNames: ['Alexander Ovchinnikov', 'Александр Овчинников', 'ovchinnikov-lxs'],
+};
+
 export type Link = { label: string; href: string };
 
 export type Job = {

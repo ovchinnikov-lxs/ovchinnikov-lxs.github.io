@@ -66,6 +66,15 @@ body {
   padding: 8px 0 24px;
 }
 
+.avatar {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 20px;
+  object-fit: cover;
+  border: 1px solid;
+}
+
 .eyebrow,
 .card-label,
 .chip,
@@ -293,6 +302,7 @@ body {
   color: #551a8b;
 }
 
+[data-skin='raw'] .avatar,
 [data-skin='raw'] .chip,
 [data-skin='raw'] .card,
 [data-skin='raw'] .job + .job {
@@ -361,6 +371,15 @@ body {
 .ink-layer > * {
   position: relative;
   z-index: 1;
+}
+
+[data-skin='ink'] .avatar {
+  border-color: rgb(255 255 255 / 0.16);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 4px var(--ink-bg),
+    0 0 0 6px rgb(198 244 50 / 0.55),
+    0 12px 40px -8px rgb(167 139 250 / 0.6);
 }
 
 [data-skin='ink'] .eyebrow {

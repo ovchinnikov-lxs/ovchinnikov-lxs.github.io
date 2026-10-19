@@ -12,7 +12,8 @@
     "build": "next build",
     "start": "npx serve out",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "images": "next build && node scripts/images/generate.mjs"
   },
   "dependencies": {
     "next": "16.4.2",
@@ -26,6 +27,7 @@
     "@types/react-dom": "^19.3.0",
     "eslint": "^10.13.0",
     "eslint-config-next": "^16.4.2",
+    "playwright": "1.56.1",
     "postcss": "^8.5.31",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.3"

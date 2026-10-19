@@ -6,8 +6,8 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 const CELL = 8;
 /** Brush radius, CSS px. */
 const BRUSH = 90;
-/** Field lost per frame once painted: ~3 s to heal from a full stroke. */
-const DECAY = 0.008;
+/** Scratches are permanent; the fringe keeps shimmering this long after the last input, then freezes. */
+const SETTLE_MS = 1600;
 const FIELD_MAX = 1.5;
 const WIPE_MS = 1100;
 /** Edge band (in field units) that gets the iridescent fringe. */
@@ -39,6 +39,7 @@ function paletteAt(t: number): [number, number, number] {
  * absolutely on top of it. A per-cell scalar field (painted by the pointer)
  * is dithered against per-cell noise into a pixel clip-path, and the cells on its
  * edge are drawn as a shimmering fringe — like an image being diffused in.
+ * Scratches stay: whatever the pointer has uncovered remains uncovered.
  * Only the clip changes, so nothing reflows and text never moves (no CLS).
  */
 export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) {
@@ -72,6 +73,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     let last: { x: number; y: number } | null = null;
     let touch: { cx: number; cy: number } | null = null;
     let frame = 0;
+    let lastInput = 0;
     let intro = 0;
 
     const resize = () => {
@@ -127,6 +129,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       const steps = Math.max(1, Math.ceil(Math.hypot(x - from.x, y - from.y) / (BRUSH * 0.3)));
       for (let i = 1; i <= steps; i++) splat(from.x + ((x - from.x) * i) / steps, from.y + ((y - from.y) * i) / steps);
       last = { x, y };
+      lastInput = performance.now();
       schedule();
     };
 
@@ -176,7 +179,8 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       const fx = fringeImg.data;
       const path: string[] = [];
       const t = now * 0.00012;
-      const shimmer = reduceMotion ? 0 : 0.07;
+      const calm = Math.max(0, 1 - (now - lastInput) / SETTLE_MS);
+      const shimmer = reduceMotion ? 0 : 0.07 * calm;
       let alive = false;
       let next0 = Infinity;
       let next1 = -1;
@@ -184,15 +188,11 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       for (let y = r0; y <= r1; y++) {
         let run = -1;
         for (let x = 0, i = y * cols; x < cols; x++, i++) {
-          let f = field[i];
+          const f = field[i];
           if (f > 0) {
-            f = Math.max(0, f - DECAY);
-            field[i] = f;
-            if (f > 0) {
-              alive = true;
-              if (y < next0) next0 = y;
-              next1 = y;
-            }
+            alive = true;
+            if (y < next0) next0 = y;
+            next1 = y;
           }
           // Coverage of the ink layer before scratches: 0, 1, or the wipe front.
           let base: number;
@@ -248,7 +248,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       fctx.putImageData(fringeImg, 0, 0);
       gctx.clearRect(0, 0, cols, h);
       gctx.drawImage(fringe, 0, 0);
-      schedule();
+      if (wiping || calm > 0) schedule();
     };
 
     function schedule() {
@@ -289,6 +289,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       wipe: (to, clientX, clientY) => {
         const p = toStage(clientX, clientY);
         field.fill(0);
+        lastInput = performance.now();
         if (reduceMotion) {
           current = to;
           wipe = null;

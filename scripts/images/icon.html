@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<!--HEAD-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 512px; height: 512px; background: transparent; }
+  .tile {
+    position: relative; width: 512px; height: 512px; border-radius: var(--radius, 112px); overflow: hidden;
+    background:
+      radial-gradient(360px 300px at 100% 0, rgb(167 139 250 / .55), transparent 70%),
+      radial-gradient(300px 260px at 0 100%, rgb(198 244 50 / .28), transparent 70%),
+      #0b0b0f;
+  }
+  .ao {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font: 600 252px/1 var(--font-sans), sans-serif; letter-spacing: -.07em; padding-right: 14px;
+    color: transparent; background: linear-gradient(135deg, #c6f432 10%, #67e8f9 50%, #a78bfa 90%);
+    background-clip: text; -webkit-background-clip: text;
+  }
+  .px { position: absolute; right: 56px; bottom: 56px; width: 160px; height: 80px; }
+</style>
+</head>
+<body>
+  <div class="tile"><div class="ao">AO</div><div class="px"></div></div>
+  <script>
+    // Three "diffusion" pixels in the corner — the site's motif.
+    const px = document.querySelector('.px');
+    [[3, 0, '#f472b6'], [2, 1, '#67e8f9'], [3, 1, '#c6f432']].forEach(([x, y, c]) => {
+      const d = document.createElement('i');
+      d.style.cssText = `position:absolute;left:${x * 40}px;top:${y * 40}px;width:40px;height:40px;background:${c}`;
+      px.appendChild(d);
+    });
+  </script>
+</body>
+</html>
