@@ -7,7 +7,7 @@
  * sizes, margins, paddings, border widths, gaps). `[data-skin='raw']` and
  * `[data-skin='ink']` may only change paint: colors, backgrounds, radii,
  * shadows, decorations. Breaking this rule makes the layers drift apart
- * under the scratch mask.
+ * under the scratch clip.
  */
 
 :root {
@@ -328,10 +328,8 @@ body {
   user-select: none;
   color: var(--ink-text);
   background: var(--ink-bg);
-  /* Hidden until the canvas mask says otherwise; JS swaps in the mask image. */
-  mask-image: linear-gradient(transparent, transparent);
-  mask-size: 100% 100%;
-  mask-repeat: no-repeat;
+  /* Hidden until the pixel clip-path says otherwise (set from JS). */
+  clip-path: inset(0 0 100% 0);
 }
 
 /* Fading grid + soft aurora glow behind the content. */

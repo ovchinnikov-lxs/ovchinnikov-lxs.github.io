@@ -4,12 +4,10 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 /** Size of one "diffusion" pixel, CSS px. */
 const CELL = 8;
-/** Mask canvas pixels per cell: cells stay crisp after the browser scales the mask. */
-const MASK_PX = 4;
 /** Brush radius, CSS px. */
-const BRUSH = 64;
-/** Field lost per frame once painted: ~2 s to heal from a full stroke. */
-const DECAY = 0.012;
+const BRUSH = 90;
+/** Field lost per frame once painted: ~3 s to heal from a full stroke. */
+const DECAY = 0.008;
 const FIELD_MAX = 1.5;
 const WIPE_MS = 1100;
 /** Edge band (in field units) that gets the iridescent fringe. */
@@ -39,9 +37,9 @@ function paletteAt(t: number): [number, number, number] {
 /**
  * Two stacked copies of the same layout: `raw` in the document flow and `ink`
  * absolutely on top of it. A per-cell scalar field (painted by the pointer)
- * is dithered against per-cell noise into a pixel mask, and the cells on its
+ * is dithered against per-cell noise into a pixel clip-path, and the cells on its
  * edge are drawn as a shimmering fringe — like an image being diffused in.
- * Only the mask changes, so nothing reflows and text never moves (no CLS).
+ * Only the clip changes, so nothing reflows and text never moves (no CLS).
  */
 export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -58,10 +56,6 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     const glow = glowRef.current!;
     const fctx = fringe.getContext('2d')!;
     const gctx = glow.getContext('2d')!;
-    const cells = document.createElement('canvas');
-    const cctx = cells.getContext('2d')!;
-    const mask = document.createElement('canvas');
-    const mctx = mask.getContext('2d')!;
     const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     let cols = 1;
@@ -79,7 +73,6 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     let touch: { cx: number; cy: number } | null = null;
     let frame = 0;
     let intro = 0;
-    let disposed = false;
 
     const resize = () => {
       const nc = Math.max(1, Math.ceil(stage.offsetWidth / CELL));
@@ -137,50 +130,17 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       schedule();
     };
 
-    // PNG encoding runs off the main thread; frames that land mid-encode are skipped.
-    let encoding = false;
-    let maskUrl = '';
-    // Bumped whenever the mask is set statically, so a late blob can't overwrite it.
-    let gen = 0;
-    const setMask = (image: string, position: string, size: string) => {
-      const st = layer.style;
-      st.maskImage = st.webkitMaskImage = image;
-      st.maskPosition = st.webkitMaskPosition = position;
-      st.maskSize = st.webkitMaskSize = size;
-      st.maskRepeat = st.webkitMaskRepeat = 'no-repeat';
-    };
-
-    /** Mask = the encoded band, plus solid blocks above/below it when the ink is fully shown there. */
-    const pushMask = (r0: number, h: number, solidOutside: boolean) => {
-      if (encoding) return;
-      encoding = true;
-      const g = gen;
-      mask.toBlob((blob) => {
-        encoding = false;
-        if (!blob || disposed || g !== gen) return;
-        const prev = maskUrl;
-        maskUrl = URL.createObjectURL(blob);
-        const W = `${cols * CELL}px`;
-        const images = [`url(${maskUrl})`];
-        const positions = [`0 ${r0 * CELL}px`];
-        const sizes = [`${W} ${h * CELL}px`];
-        if (solidOutside) {
-          const solid = 'linear-gradient(#000, #000)';
-          images.push(solid, solid);
-          positions.push('0 0', `0 ${(r0 + h) * CELL}px`);
-          sizes.push(`${W} ${r0 * CELL}px`, `${W} ${(rows - r0 - h) * CELL}px`);
-        }
-        setMask(images.join(', '), positions.join(', '), sizes.join(', '));
-        if (prev) setTimeout(() => URL.revokeObjectURL(prev), 100);
-      });
+    // The reveal is a clip-path made of pixel runs: applied synchronously on the
+    // same frame, unlike a mask image that the browser has to decode first.
+    const setClip = (value: string) => {
+      layer.style.clipPath = value;
     };
 
     const setStatic = (m: Mode) => {
-      gen++;
       band0 = Infinity;
       band1 = -1;
-      // '' falls back to the stylesheet's fully transparent mask.
-      setMask(m === 'ink' ? 'none' : '', '', '');
+      // '' falls back to the stylesheet, which clips the ink layer away entirely.
+      setClip(m === 'ink' ? 'none' : '');
       fctx.clearRect(0, 0, fringe.width, fringe.height);
       gctx.clearRect(0, 0, glow.width, glow.height);
     };
@@ -212,10 +172,9 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         return;
       }
       const h = r1 - r0 + 1;
-      const cellImg = new ImageData(cols, h);
       const fringeImg = new ImageData(cols, h);
-      const px = cellImg.data;
       const fx = fringeImg.data;
+      const path: string[] = [];
       const t = now * 0.00012;
       const shimmer = reduceMotion ? 0 : 0.07;
       let alive = false;
@@ -223,6 +182,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       let next1 = -1;
 
       for (let y = r0; y <= r1; y++) {
+        let run = -1;
         for (let x = 0, i = y * cols; x < cols; x++, i++) {
           let f = field[i];
           if (f > 0) {
@@ -244,8 +204,12 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
           const v = target === 'ink' ? base - f : base + f;
           const thr = noise[i] + Math.sin(now * 0.006 + phase[i]) * shimmer;
           const on = v > thr;
+          if (on && run < 0) run = x;
+          if (!on && run >= 0) {
+            path.push(`M${run * CELL} ${y * CELL}h${(x - run) * CELL}v${CELL}h${(run - x) * CELL}z`);
+            run = -1;
+          }
           const o = ((y - r0) * cols + x) * 4;
-          px[o + 3] = on ? 255 : 0;
           const edge = Math.abs(v - thr);
           if (edge < FRINGE && v > 0.04 && v < 0.98) {
             const [r, g, b] = paletteAt(t * 6 + (x + y * 0.6) * 0.012);
@@ -255,6 +219,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
             fx[o + 3] = 255 * (1 - edge / FRINGE);
           } else fx[o + 3] = 0;
         }
+        if (run >= 0) path.push(`M${run * CELL} ${y * CELL}h${(cols - run) * CELL}v${CELL}h${(run - cols) * CELL}z`);
       }
 
       if (!alive && !wiping) {
@@ -265,14 +230,14 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       band0 = next0;
       band1 = next1;
 
-      cells.width = cols;
-      cells.height = h;
-      cctx.putImageData(cellImg, 0, 0);
-      mask.width = cols * MASK_PX;
-      mask.height = h * MASK_PX;
-      mctx.imageSmoothingEnabled = false;
-      mctx.drawImage(cells, 0, 0, mask.width, mask.height);
-      pushMask(r0, h, target === 'ink' && !wiping);
+      if (target === 'ink' && !wiping) {
+        // Ink is fully shown above and below the band.
+        const W = cols * CELL;
+        path.push(`M0 0h${W}v${r0 * CELL}h${-W}z`);
+        path.push(`M0 ${(r1 + 1) * CELL}h${W}V${rows * CELL}h${-W}z`);
+      }
+      // An empty path() is invalid; a zero-area one hides everything.
+      setClip(`path('${path.length ? path.join('') : 'M0 0z'}')`);
 
       for (const c of [fringe, glow]) {
         if (c.height !== h) c.height = h;
@@ -364,7 +329,6 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     window.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
-      disposed = true;
       ro.disconnect();
       cancelAnimationFrame(frame);
       cancelAnimationFrame(intro);
@@ -375,7 +339,6 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('touchcancel', onTouchEnd);
       window.removeEventListener('scroll', onScroll);
-      if (maskUrl) URL.revokeObjectURL(maskUrl);
       api.current = null;
     };
   }, []);
