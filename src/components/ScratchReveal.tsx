@@ -13,16 +13,21 @@ const FIELD_MAX = 1.5;
 const SPRING = 0.16;
 const DAMP = 0.8;
 /**
- * Spreading after a stroke: every painted cell gets a travel budget (px) and creeps outwards,
- * paying more per cell downwards and much more upwards — so it reaches the screen edges
- * sideways, goes down noticeably less, and up barely.
+ * Spreading after a stroke, noise-dissolve style: every painted cell gets a travel budget (px)
+ * and creeps outwards, paying more per cell downwards and much more upwards — so it reaches the
+ * screen edges sideways, goes down noticeably less, and up barely. Costs are modulated by a
+ * coherent noise field (fingers instead of a diamond), and the front fades out as the budget
+ * drains, so where it stops is decided by the noise threshold — no straight edges.
  */
 const REACH = 1600;
 const COST_X = CELL;
 const COST_DOWN = CELL * 3.2;
 const COST_UP = CELL * 9;
-/** Chance a cell skips spreading on a given frame: keeps the front ragged and organic. */
-const SPREAD_SKIP = 0.45;
+/** Last stretch of the budget over which the front fades out, px. */
+const FADE = 1000;
+/** Spreading waits until the pointer rests for this long, then creeps at ~120 px/s. */
+const SPREAD_DELAY_MS = 400;
+const SPREAD_CHANCE = 0.28;
 const WIPE_MS = 1100;
 /** Edge band (in field units) that gets the iridescent fringe. */
 const FRINGE = 0.11;
@@ -37,6 +42,26 @@ const PALETTE: [number, number, number][] = [
   [198, 244, 50],
   [244, 114, 182],
 ];
+
+/** Seeded value noise + fBm on the cell grid: smooth, organic thresholds instead of white noise. */
+function valueNoise(seed: number) {
+  const hash = (x: number, y: number) => {
+    let h = (x * 374761393 + y * 668265263 + seed * 2147483647) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+  };
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+  const at = (x: number, y: number) => {
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    const u = smooth(x - xi);
+    const v = smooth(y - yi);
+    const a = hash(xi, yi) + (hash(xi + 1, yi) - hash(xi, yi)) * u;
+    const b = hash(xi, yi + 1) + (hash(xi + 1, yi + 1) - hash(xi, yi + 1)) * u;
+    return a + (b - a) * v;
+  };
+  return (x: number, y: number) => (at(x, y) * 0.57 + at(x * 2.1, y * 2.1) * 0.29 + at(x * 4.3, y * 4.3) * 0.14);
+}
 
 function paletteAt(t: number): [number, number, number] {
   const n = PALETTE.length;
@@ -53,7 +78,8 @@ function paletteAt(t: number): [number, number, number] {
  * absolutely on top of it. A per-cell scalar field (painted by the pointer)
  * is dithered against per-cell noise into a pixel clip-path, and the cells on its
  * edge are drawn as a shimmering fringe — like an image being diffused in.
- * Scratches stay and slowly spread: sideways to the screen edges, down less, up barely.
+ * Scratches stay and, once the pointer rests, slowly spread (noise dissolve):
+ * sideways to the screen edges, down less, up barely.
  * The brush itself has inertia: it trails the pointer and overshoots a little.
  * Only the clip changes, so nothing reflows and text never moves (no CLS).
  */
@@ -80,6 +106,9 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     let noise = new Float32Array(1);
     let phase = new Float32Array(1);
     let reach = new Float32Array(1);
+    let drag = new Float32Array(1);
+    const thresholdNoise = valueNoise(7);
+    const dragNoise = valueNoise(13);
     // Rows that may hold paint: only this band is simulated, encoded and drawn.
     let band0 = Infinity;
     let band1 = -1;
@@ -117,9 +146,14 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         }
       noise = new Float32Array(cols * rows);
       phase = new Float32Array(cols * rows);
-      for (let i = 0; i < noise.length; i++) {
-        noise[i] = 0.18 + Math.random() * 0.64;
-        phase[i] = Math.random() * Math.PI * 2;
+      drag = new Float32Array(cols * rows);
+      for (let y = 0, i = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++, i++) {
+          // Mostly smooth fBm (organic contours) with a little per-pixel grain on top.
+          noise[i] = 0.12 + 0.76 * (thresholdNoise(x / 10, y / 10) * 0.85 + Math.random() * 0.15);
+          phase[i] = Math.random() * Math.PI * 2;
+          drag[i] = 0.35 + 1.7 * dragNoise(x / 16, y / 16);
+        }
       }
       for (const c of [fringe, glow]) c.style.width = `${cols * CELL}px`;
       schedule();
@@ -193,29 +227,35 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       return moving;
     };
 
-    /** Lets uncovered areas creep outwards: values are copied (not diluted) while the budget lasts. */
+    /** Lets uncovered areas creep outwards: values are copied while the budget lasts, then fade. */
     const spread = (r0: number, r1: number) => {
       const base = r0 * cols;
       const pf = field.slice(base, (r1 + 1) * cols);
       const pr = reach.slice(base, (r1 + 1) * cols);
       let grew = false;
-      const offer = (i: number, x: number, y: number, cost: number) => {
-        if (x < 0 || x >= cols || y < r0 || y > r1) return;
-        const j = (y - r0) * cols + x;
-        const budget = pr[j] - cost;
-        if (budget <= 0 || pf[j] <= field[i] + 0.01) return;
-        field[i] = pf[j];
-        reach[i] = Math.max(reach[i], budget);
-        grew = true;
-      };
       for (let y = r0; y <= r1; y++) {
         for (let x = 0; x < cols; x++) {
-          if (Math.random() < SPREAD_SKIP) continue;
+          if (Math.random() > SPREAD_CHANCE) continue;
           const i = y * cols + x;
-          offer(i, x - 1, y, COST_X);
-          offer(i, x + 1, y, COST_X);
-          offer(i, x, y - 1, COST_DOWN);
-          offer(i, x, y + 1, COST_UP);
+          const k = drag[i];
+          for (let dy = -1; dy <= 1; dy++) {
+            const sy = y + dy;
+            if (sy < r0 || sy > r1) continue;
+            // dy = -1: the source is above, so this cell is reached by spreading down.
+            const vertical = dy < 0 ? COST_DOWN : dy > 0 ? COST_UP : 0;
+            for (let dx = -1; dx <= 1; dx++) {
+              const sx = x + dx;
+              if ((dx === 0 && dy === 0) || sx < 0 || sx >= cols) continue;
+              const j = (sy - r0) * cols + sx;
+              const budget = pr[j] - Math.hypot(dx * COST_X, vertical) * k;
+              if (budget <= 0) continue;
+              const value = pf[j] * Math.min(1, budget / FADE);
+              if (value <= field[i] + 0.01) continue;
+              field[i] = value;
+              reach[i] = Math.max(reach[i], budget);
+              grew = true;
+            }
+          }
         }
       }
       return grew;
@@ -248,7 +288,8 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         setStatic(current);
         return;
       }
-      const grew = !wiping && !reduceMotion && spread(r0, r1);
+      const resting = now - lastInput > SPREAD_DELAY_MS;
+      const grew = !wiping && !reduceMotion && resting && spread(r0, r1);
       const h = r1 - r0 + 1;
       const fringeImg = new ImageData(cols, h);
       const fx = fringeImg.data;
@@ -316,7 +357,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
           fx[o] = r;
           fx[o + 1] = g;
           fx[o + 2] = b;
-          fx[o + 3] = 200;
+          fx[o + 3] = 150;
         }
       }
 
@@ -346,7 +387,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       fctx.putImageData(fringeImg, 0, 0);
       gctx.clearRect(0, 0, cols, h);
       gctx.drawImage(fringe, 0, 0);
-      if (wiping || calm > 0 || grew || moving) schedule();
+      if (wiping || calm > 0 || grew || moving || !resting) schedule();
     };
 
     function schedule() {
