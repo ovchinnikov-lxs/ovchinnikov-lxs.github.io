@@ -21,10 +21,22 @@
   --ink-cyan: #67e8f9;
 }
 
+:root {
+  color-scheme: light dark;
+}
+
 html,
 body {
   background: #fff;
   color: #000;
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body {
+    background: #121212;
+    color: #e8e8e8;
+  }
 }
 
 /* =================== shared layout (both skins) =================== */
@@ -328,6 +340,42 @@ body {
   background: #008000;
 }
 
+/* Dark device: the raw skin mimics the browser's own dark defaults instead of a white page. */
+@media (prefers-color-scheme: dark) {
+  [data-skin='raw'] a {
+    color: #9ecaff;
+  }
+
+  [data-skin='raw'] a:visited {
+    color: #d0adf0;
+  }
+
+  [data-skin='raw'] .avatar,
+  [data-skin='raw'] .chip,
+  [data-skin='raw'] .card,
+  [data-skin='raw'] .job + .job {
+    border-color: #8a8a8a;
+  }
+
+  [data-skin='raw'] .btn {
+    color: #e8e8e8;
+    background: #3b3b3b;
+    border-color: #858585;
+  }
+
+  [data-skin='raw'] .btn:hover {
+    background: #464646;
+  }
+
+  [data-skin='raw'] .btn-primary {
+    background: #4a4a4a;
+  }
+
+  [data-skin='raw'] .dot {
+    background: #3fd16a;
+  }
+}
+
 /* =================== ink skin: the design underneath =================== */
 
 .ink-layer {
@@ -552,6 +600,18 @@ body {
 
 .toggle:hover {
   background: #e5e5e5;
+}
+
+@media (prefers-color-scheme: dark) {
+  .toggle {
+    color: #e8e8e8;
+    background: #3b3b3b;
+    border-color: #858585;
+  }
+
+  .toggle:hover {
+    background: #464646;
+  }
 }
 
 .toggle:focus-visible {
