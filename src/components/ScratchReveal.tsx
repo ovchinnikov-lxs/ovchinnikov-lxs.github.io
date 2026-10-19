@@ -2,73 +2,104 @@
 
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 
-/** Mask resolution relative to CSS pixels: low = soft, watery edges and a cheap canvas. */
-const SCALE = 0.5;
-/** Brush radius in CSS pixels. */
-const BRUSH = 46;
-/** How long a scratch stays before it heals, ms. */
-const LIFETIME = 2600;
-const MAX_STAMPS = 900;
-const WIPE_MS = 900;
+/** Size of one "diffusion" pixel, CSS px. */
+const CELL = 8;
+/** Mask canvas pixels per cell: cells stay crisp after the browser scales the mask. */
+const MASK_PX = 4;
+/** Brush radius, CSS px. */
+const BRUSH = 64;
+/** Field lost per frame once painted: ~2 s to heal from a full stroke. */
+const DECAY = 0.012;
+const FIELD_MAX = 1.5;
+const WIPE_MS = 1100;
+/** Edge band (in field units) that gets the iridescent fringe. */
+const FRINGE = 0.11;
 
-type Stamp = { x: number; y: number; r: number; rot: number; t: number };
 type Mode = 'raw' | 'ink';
 
-/** A blotchy, ink-like brush: one soft core plus random specks and splatters. */
-function makeBrush(size: number) {
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const g = c.getContext('2d')!;
-  const mid = size / 2;
-  const core = g.createRadialGradient(mid, mid, 0, mid, mid, mid * 0.62);
-  core.addColorStop(0, 'rgba(0,0,0,1)');
-  core.addColorStop(0.7, 'rgba(0,0,0,0.85)');
-  core.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = core;
-  g.fillRect(0, 0, size, size);
-  g.fillStyle = '#000';
-  for (let i = 0; i < 70; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const d = Math.pow(Math.random(), 0.6) * mid * 0.95;
-    const r = Math.random() * size * 0.05 + 0.4;
-    g.globalAlpha = 0.35 + Math.random() * 0.65;
-    g.beginPath();
-    g.arc(mid + Math.cos(a) * d, mid + Math.sin(a) * d, r, 0, Math.PI * 2);
-    g.fill();
-  }
-  return c;
+/** AI-ish iridescent palette: violet → blue → cyan → lime → pink, as [r, g, b]. */
+const PALETTE: [number, number, number][] = [
+  [167, 139, 250],
+  [96, 165, 250],
+  [103, 232, 249],
+  [198, 244, 50],
+  [244, 114, 182],
+];
+
+function paletteAt(t: number): [number, number, number] {
+  const n = PALETTE.length;
+  const x = (((t % 1) + 1) % 1) * n;
+  const i = Math.floor(x);
+  const f = x - i;
+  const a = PALETTE[i % n];
+  const b = PALETTE[(i + 1) % n];
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
 }
 
 /**
  * Two stacked copies of the same layout: `raw` in the document flow and `ink`
- * absolutely on top of it, masked by a low-res canvas the pointer paints into.
+ * absolutely on top of it. A per-cell scalar field (painted by the pointer)
+ * is dithered against per-cell noise into a pixel mask, and the cells on its
+ * edge are drawn as a shimmering fringe — like an image being diffused in.
  * Only the mask changes, so nothing reflows and text never moves (no CLS).
  */
 export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const inkRef = useRef<HTMLDivElement>(null);
+  const fringeRef = useRef<HTMLCanvasElement>(null);
+  const glowRef = useRef<HTMLCanvasElement>(null);
   const [mode, setMode] = useState<Mode>('raw');
   const api = useRef<{ wipe: (to: Mode, x: number, y: number) => void } | null>(null);
 
   useEffect(() => {
     const stage = stageRef.current!;
     const layer = inkRef.current!;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
-    const brush = makeBrush(64);
+    const fringe = fringeRef.current!;
+    const glow = glowRef.current!;
+    const fctx = fringe.getContext('2d')!;
+    const gctx = glow.getContext('2d')!;
+    const cells = document.createElement('canvas');
+    const cctx = cells.getContext('2d')!;
+    const mask = document.createElement('canvas');
+    const mctx = mask.getContext('2d')!;
     const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    let stamps: Stamp[] = [];
+    let cols = 1;
+    let rows = 1;
+    let field = new Float32Array(1);
+    let noise = new Float32Array(1);
+    let phase = new Float32Array(1);
+    // Rows that may hold paint: only this band is simulated, encoded and drawn.
+    let band0 = Infinity;
+    let band1 = -1;
+
     let current: Mode = 'raw';
-    let wipe: { from: Mode; to: Mode; x: number; y: number; t: number } | null = null;
+    let wipe: { from: Mode; to: Mode; cx: number; cy: number; t: number } | null = null;
     let last: { x: number; y: number } | null = null;
     let touch: { cx: number; cy: number } | null = null;
     let frame = 0;
+    let intro = 0;
     let disposed = false;
 
     const resize = () => {
-      canvas.width = Math.max(1, Math.ceil(stage.offsetWidth * SCALE));
-      canvas.height = Math.max(1, Math.ceil(stage.offsetHeight * SCALE));
+      const nc = Math.max(1, Math.ceil(stage.offsetWidth / CELL));
+      const nr = Math.max(1, Math.ceil(stage.offsetHeight / CELL));
+      if (nc === cols && nr === rows) return;
+      const old = field;
+      const oc = cols;
+      const or = rows;
+      cols = nc;
+      rows = nr;
+      field = new Float32Array(cols * rows);
+      for (let y = 0; y < Math.min(rows, or); y++)
+        for (let x = 0; x < Math.min(cols, oc); x++) field[y * cols + x] = old[y * oc + x];
+      noise = new Float32Array(cols * rows);
+      phase = new Float32Array(cols * rows);
+      for (let i = 0; i < noise.length; i++) {
+        noise[i] = 0.18 + Math.random() * 0.64;
+        phase[i] = Math.random() * Math.PI * 2;
+      }
+      for (const c of [fringe, glow]) c.style.width = `${cols * CELL}px`;
       schedule();
     };
 
@@ -77,112 +108,192 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       return { x: clientX - r.left, y: clientY - r.top };
     };
 
-    const stampLine = (x: number, y: number) => {
-      const now = performance.now();
-      const from = last ?? { x, y };
-      const dist = Math.hypot(x - from.x, y - from.y);
-      const steps = Math.max(1, Math.ceil(dist / (BRUSH * 0.35)));
-      for (let i = 1; i <= steps; i++) {
-        stamps.push({
-          x: from.x + ((x - from.x) * i) / steps,
-          y: from.y + ((y - from.y) * i) / steps,
-          r: BRUSH * (0.75 + Math.random() * 0.5),
-          rot: Math.random() * Math.PI * 2,
-          t: now,
-        });
+    /** Adds a gaussian blob of "denoise" energy around (x, y), in CSS px. */
+    const splat = (x: number, y: number) => {
+      const cx = x / CELL;
+      const cy = y / CELL;
+      const rad = BRUSH / CELL;
+      const s2 = 2 * (rad / 2) ** 2;
+      const x0 = Math.max(0, Math.floor(cx - rad));
+      const x1 = Math.min(cols - 1, Math.ceil(cx + rad));
+      const y0 = Math.max(0, Math.floor(cy - rad));
+      const y1 = Math.min(rows - 1, Math.ceil(cy + rad));
+      band0 = Math.min(band0, y0);
+      band1 = Math.max(band1, y1);
+      for (let yy = y0; yy <= y1; yy++) {
+        for (let xx = x0; xx <= x1; xx++) {
+          const d2 = (xx + 0.5 - cx) ** 2 + (yy + 0.5 - cy) ** 2;
+          const i = yy * cols + xx;
+          field[i] = Math.min(FIELD_MAX, field[i] + 0.55 * Math.exp(-d2 / s2));
+        }
       }
-      if (stamps.length > MAX_STAMPS) stamps = stamps.slice(-MAX_STAMPS);
+    };
+
+    const stroke = (x: number, y: number) => {
+      const from = last ?? { x, y };
+      const steps = Math.max(1, Math.ceil(Math.hypot(x - from.x, y - from.y) / (BRUSH * 0.3)));
+      for (let i = 1; i <= steps; i++) splat(from.x + ((x - from.x) * i) / steps, from.y + ((y - from.y) * i) / steps);
       last = { x, y };
       schedule();
     };
 
+    // PNG encoding runs off the main thread; frames that land mid-encode are skipped.
+    let encoding = false;
+    let maskUrl = '';
+    // Bumped whenever the mask is set statically, so a late blob can't overwrite it.
+    let gen = 0;
+    const setMask = (image: string, position: string, size: string) => {
+      const st = layer.style;
+      st.maskImage = st.webkitMaskImage = image;
+      st.maskPosition = st.webkitMaskPosition = position;
+      st.maskSize = st.webkitMaskSize = size;
+      st.maskRepeat = st.webkitMaskRepeat = 'no-repeat';
+    };
+
+    /** Mask = the encoded band, plus solid blocks above/below it when the ink is fully shown there. */
+    const pushMask = (r0: number, h: number, solidOutside: boolean) => {
+      if (encoding) return;
+      encoding = true;
+      const g = gen;
+      mask.toBlob((blob) => {
+        encoding = false;
+        if (!blob || disposed || g !== gen) return;
+        const prev = maskUrl;
+        maskUrl = URL.createObjectURL(blob);
+        const W = `${cols * CELL}px`;
+        const images = [`url(${maskUrl})`];
+        const positions = [`0 ${r0 * CELL}px`];
+        const sizes = [`${W} ${h * CELL}px`];
+        if (solidOutside) {
+          const solid = 'linear-gradient(#000, #000)';
+          images.push(solid, solid);
+          positions.push('0 0', `0 ${(r0 + h) * CELL}px`);
+          sizes.push(`${W} ${r0 * CELL}px`, `${W} ${(rows - r0 - h) * CELL}px`);
+        }
+        setMask(images.join(', '), positions.join(', '), sizes.join(', '));
+        if (prev) setTimeout(() => URL.revokeObjectURL(prev), 100);
+      });
+    };
+
+    const setStatic = (m: Mode) => {
+      gen++;
+      band0 = Infinity;
+      band1 = -1;
+      // '' falls back to the stylesheet's fully transparent mask.
+      setMask(m === 'ink' ? 'none' : '', '', '');
+      fctx.clearRect(0, 0, fringe.width, fringe.height);
+      gctx.clearRect(0, 0, glow.width, glow.height);
+    };
+
     const draw = (now: number) => {
       frame = 0;
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1;
-      ctx.clearRect(0, 0, w, h);
-
-      // Base coverage: 0 in raw mode, 1 in ink mode, or a growing circle while wiping.
-      const base = wipe ? wipe.from : current;
-      if (base === 'ink') {
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, w, h);
-      }
+      let wipeR = 0;
+      let wipeBand = 1;
       let wiping = false;
       if (wipe) {
         // rAF timestamps can predate the click that started the wipe.
         const p = Math.min(1, Math.max(0, (now - wipe.t) / WIPE_MS));
         const eased = 1 - Math.pow(1 - p, 3);
-        const radius = Math.hypot(Math.max(wipe.x, w - wipe.x), Math.max(wipe.y, h - wipe.y)) * eased * 1.05;
-        ctx.globalCompositeOperation = wipe.to === 'ink' ? 'source-over' : 'destination-out';
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.arc(wipe.x, wipe.y, radius, 0, Math.PI * 2);
-        ctx.fill();
+        const far = Math.hypot(Math.max(wipe.cx, cols - wipe.cx), Math.max(wipe.cy, rows - wipe.cy));
+        wipeBand = 10;
+        wipeR = (far + wipeBand) * eased;
         if (p >= 1) {
           current = wipe.to;
           wipe = null;
         } else wiping = true;
       }
 
-      // Scratches add ink over raw, or erase ink back to raw.
-      stamps = stamps.filter((s) => now - s.t < LIFETIME);
-      ctx.globalCompositeOperation = (wipe?.to ?? current) === 'ink' ? 'destination-out' : 'source-over';
-      for (const s of stamps) {
-        const age = (now - s.t) / LIFETIME;
-        ctx.globalAlpha = age < 0.6 ? 1 : 1 - (age - 0.6) / 0.4;
-        const r = s.r * SCALE;
-        ctx.save();
-        ctx.translate(s.x * SCALE, s.y * SCALE);
-        ctx.rotate(s.rot);
-        ctx.drawImage(brush, -r, -r, r * 2, r * 2);
-        ctx.restore();
+      const target = wipe ? wipe.to : current;
+      // Outside the painted band the picture is uniform, so skip it (except mid-wipe).
+      const r0 = wiping ? 0 : Math.max(0, band0 - 1);
+      const r1 = wiping ? rows - 1 : Math.min(rows - 1, band1 + 1);
+      if (r1 < r0) {
+        setStatic(current);
+        return;
+      }
+      const h = r1 - r0 + 1;
+      const cellImg = new ImageData(cols, h);
+      const fringeImg = new ImageData(cols, h);
+      const px = cellImg.data;
+      const fx = fringeImg.data;
+      const t = now * 0.00012;
+      const shimmer = reduceMotion ? 0 : 0.07;
+      let alive = false;
+      let next0 = Infinity;
+      let next1 = -1;
+
+      for (let y = r0; y <= r1; y++) {
+        for (let x = 0, i = y * cols; x < cols; x++, i++) {
+          let f = field[i];
+          if (f > 0) {
+            f = Math.max(0, f - DECAY);
+            field[i] = f;
+            if (f > 0) {
+              alive = true;
+              if (y < next0) next0 = y;
+              next1 = y;
+            }
+          }
+          // Coverage of the ink layer before scratches: 0, 1, or the wipe front.
+          let base: number;
+          if (wipe) {
+            const d = Math.hypot(x - wipe.cx, y - wipe.cy);
+            const c = Math.min(1, Math.max(0, (wipeR - d) / wipeBand));
+            base = wipe.to === 'ink' ? c : 1 - c;
+          } else base = current === 'ink' ? 1 : 0;
+          const v = target === 'ink' ? base - f : base + f;
+          const thr = noise[i] + Math.sin(now * 0.006 + phase[i]) * shimmer;
+          const on = v > thr;
+          const o = ((y - r0) * cols + x) * 4;
+          px[o + 3] = on ? 255 : 0;
+          const edge = Math.abs(v - thr);
+          if (edge < FRINGE && v > 0.04 && v < 0.98) {
+            const [r, g, b] = paletteAt(t * 6 + (x + y * 0.6) * 0.012);
+            fx[o] = r;
+            fx[o + 1] = g;
+            fx[o + 2] = b;
+            fx[o + 3] = 255 * (1 - edge / FRINGE);
+          } else fx[o + 3] = 0;
+        }
       }
 
-      const active = stamps.length > 0 || wiping;
-      if (!active && current === 'raw') {
-        gen++;
-        layer.style.maskImage = layer.style.webkitMaskImage = '';
-      } else if (!active && current === 'ink') {
-        gen++;
-        layer.style.maskImage = layer.style.webkitMaskImage = 'none';
-      } else {
-        pushMask();
+      if (!alive && !wiping) {
+        field.fill(0);
+        setStatic(current);
+        return;
       }
-      if (active) schedule();
+      band0 = next0;
+      band1 = next1;
+
+      cells.width = cols;
+      cells.height = h;
+      cctx.putImageData(cellImg, 0, 0);
+      mask.width = cols * MASK_PX;
+      mask.height = h * MASK_PX;
+      mctx.imageSmoothingEnabled = false;
+      mctx.drawImage(cells, 0, 0, mask.width, mask.height);
+      pushMask(r0, h, target === 'ink' && !wiping);
+
+      for (const c of [fringe, glow]) {
+        if (c.height !== h) c.height = h;
+        if (c.width !== cols) c.width = cols;
+        c.style.top = `${r0 * CELL}px`;
+        c.style.height = `${h * CELL}px`;
+      }
+      fctx.putImageData(fringeImg, 0, 0);
+      gctx.clearRect(0, 0, cols, h);
+      gctx.drawImage(fringe, 0, 0);
+      schedule();
     };
-
-    // PNG encoding runs off the main thread; frames that land mid-encode are simply skipped.
-    let encoding = false;
-    let maskUrl = '';
-    // Bumped whenever the mask is set statically, so a late blob can't overwrite it.
-    let gen = 0;
-    function pushMask() {
-      if (encoding) return;
-      encoding = true;
-      const g = gen;
-      canvas.toBlob((blob) => {
-        encoding = false;
-        if (!blob || disposed || g !== gen) return;
-        const prev = maskUrl;
-        maskUrl = URL.createObjectURL(blob);
-        layer.style.maskImage = layer.style.webkitMaskImage = `url(${maskUrl})`;
-        if (prev) setTimeout(() => URL.revokeObjectURL(prev), 100);
-      });
-    }
 
     function schedule() {
       if (!frame) frame = requestAnimationFrame(draw);
     }
 
     const onPointerMove = (e: PointerEvent) => {
-      if (e.pointerType === 'touch') {
-        touch = { cx: e.clientX, cy: e.clientY };
-      }
+      if (e.pointerType === 'touch') touch = { cx: e.clientX, cy: e.clientY };
       const p = toStage(e.clientX, e.clientY);
-      stampLine(p.x, p.y);
+      stroke(p.x, p.y);
     };
     const onPointerLeave = () => {
       last = null;
@@ -193,7 +304,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       touch = { cx: t.clientX, cy: t.clientY };
       last = null;
       const p = toStage(t.clientX, t.clientY);
-      stampLine(p.x, p.y);
+      stroke(p.x, p.y);
     };
     const onTouchMove = (e: TouchEvent) => {
       const t = e.touches[0];
@@ -206,25 +317,24 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     const onScroll = () => {
       if (!touch) return;
       const p = toStage(touch.cx, touch.cy);
-      stampLine(p.x, p.y);
+      stroke(p.x, p.y);
     };
 
     api.current = {
       wipe: (to, clientX, clientY) => {
         const p = toStage(clientX, clientY);
-        stamps = [];
+        field.fill(0);
         if (reduceMotion) {
           current = to;
           wipe = null;
         } else {
-          wipe = { from: current, to, x: p.x * SCALE, y: p.y * SCALE, t: performance.now() };
+          wipe = { from: current, to, cx: p.x / CELL, cy: p.y / CELL, t: performance.now() };
         }
         schedule();
       },
     };
 
-    // A single brush stroke across the hero on load hints that the page can be scratched.
-    let intro = 0;
+    // A single stroke across the hero on load hints that the page can be scratched.
     if (!reduceMotion) {
       const start = performance.now() + 700;
       const run = (now: number) => {
@@ -233,10 +343,9 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
           intro = requestAnimationFrame(run);
           return;
         }
+        const k = Math.min(1, p);
         const w = stage.offsetWidth;
-        const x = w * (0.06 + 0.88 * Math.min(1, p));
-        const y = 150 + Math.sin(Math.min(1, p) * Math.PI * 2.2) * 60;
-        stampLine(x, y);
+        stroke(w * (0.06 + 0.88 * k), 150 + Math.sin(k * Math.PI * 2.2) * 60);
         if (p < 1) intro = requestAnimationFrame(run);
         else last = null;
       };
@@ -266,6 +375,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('touchcancel', onTouchEnd);
       window.removeEventListener('scroll', onScroll);
+      if (maskUrl) URL.revokeObjectURL(maskUrl);
       api.current = null;
     };
   }, []);
@@ -286,6 +396,8 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       <div ref={inkRef} className="ink-layer" aria-hidden="true" inert>
         {ink}
       </div>
+      <canvas ref={glowRef} className="fringe fringe-glow" aria-hidden="true" />
+      <canvas ref={fringeRef} className="fringe" aria-hidden="true" />
       <button type="button" className="toggle" onClick={toggle} aria-pressed={mode === 'ink'}>
         {mode === 'raw' ? '✦ Reveal design' : '↺ Raw mode'}
       </button>
