@@ -37,7 +37,7 @@ const jsonLd = {
       jobTitle: profile.title,
       description: profile.summary,
       url: `${SITE_URL}/`,
-      image: { '@type': 'ImageObject', url: `${SITE_URL}/avatar.jpg`, width: 460, height: 460 },
+      image: { '@type': 'ImageObject', url: `${SITE_URL}/avatar.jpg`, width: 297, height: 297 },
       email: 'mailto:ovchinnikov.lxs@gmail.com',
       address: { '@type': 'PostalAddress', addressLocality: 'Oeiras', addressRegion: 'Lisbon', addressCountry: 'PT' },
       worksFor: { '@type': 'Organization', name: experience[0].company, url: experience[0].href },
