@@ -22,22 +22,13 @@
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 html,
 body {
   background: #fff;
   color: #000;
-}
-
-/* Dark device: the page sits like a PDF in a viewer — dim paper on a dark grey surround. */
-@media (prefers-color-scheme: dark) {
-  html,
-  body {
-    background: #2b2b2e;
-    color: #1d1d1f;
-  }
 }
 
 /* =================== shared layout (both skins) =================== */
@@ -341,50 +332,6 @@ body {
   background: #008000;
 }
 
-/* Dark device: the raw skin is a sheet of slightly dimmed paper, not a white glare. */
-@media (prefers-color-scheme: dark) {
-  [data-skin='raw'] {
-    color: #1d1d1f;
-    background: #e3e0d9;
-    box-shadow:
-      0 0 0 1px rgb(0 0 0 / 0.5),
-      0 12px 48px rgb(0 0 0 / 0.55);
-  }
-
-  [data-skin='raw'] a {
-    color: #1f4fbf;
-  }
-
-  [data-skin='raw'] a:visited {
-    color: #6a3d9a;
-  }
-
-  [data-skin='raw'] .avatar,
-  [data-skin='raw'] .chip,
-  [data-skin='raw'] .card,
-  [data-skin='raw'] .job + .job {
-    border-color: #3a3a3a;
-  }
-
-  [data-skin='raw'] .btn {
-    color: #1d1d1f;
-    background: #d3d0c8;
-    border-color: #8a8780;
-  }
-
-  [data-skin='raw'] .btn:hover {
-    background: #c9c6be;
-  }
-
-  [data-skin='raw'] .btn-primary {
-    background: #c4c1b9;
-  }
-
-  [data-skin='raw'] .dot {
-    background: #1f8f3a;
-  }
-}
-
 /* =================== ink skin: the design underneath =================== */
 
 .ink-layer {
@@ -678,18 +625,6 @@ body {
 
 .toggle:hover {
   background: #e5e5e5;
-}
-
-@media (prefers-color-scheme: dark) {
-  .toggle {
-    color: #e8e8e8;
-    background: #3b3b3b;
-    border-color: #858585;
-  }
-
-  .toggle:hover {
-    background: #464646;
-  }
 }
 
 .toggle:focus-visible {
