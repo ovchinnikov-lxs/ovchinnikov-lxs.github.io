@@ -35,6 +35,8 @@ const SPREAD_CHANCE = 0.32;
 const DRAG_SLOP = 6;
 const TAP_SLOP = 10;
 const TAP_MS = 450;
+/** Holding still this long turns a press into pouring: the blob keeps growing until release. */
+const HOLD_MS = { mouse: 220, touch: 320 };
 const WIPE_MS = 600;
 /** Edge band (in field units) that gets the iridescent fringe. */
 const FRINGE = 0.11;
@@ -284,7 +286,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
 
     const draw = (now: number) => {
       frame = 0;
-      const moving = stepBrush();
+      const moving = stepBrush() || pourStep(now);
       let wipeR = 0;
       const wipeBand = 16;
       let wiping = false;
@@ -450,27 +452,47 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       if (!frame) frame = requestAnimationFrame(draw);
     }
 
-    /** A click / tap drops one ink blob that then spreads on its own: random size and a slightly irregular, stretched shape. */
-    const drop = (x: number, y: number) => {
-      const size = brush * (0.3 + Math.random() * 0.45);
-      const budget = reduceMotion ? 0 : REACH * (0.4 + Math.random() * 0.6);
+    /** One organic blob shape: a few overlapping lobes along a random axis, as offsets for a blob of `size`. */
+    const blobShape = (size: number) => {
       const angle = Math.random() * Math.PI * 2;
       const stretch = 1 + Math.random() * 0.8;
-      // A few overlapping lobes along a random axis merge into one organic blob.
-      const lobes = 3 + Math.floor(Math.random() * 3);
-      for (let k = 0; k < lobes; k++) {
-        const along = (k / (lobes - 1) - 0.5) * size * (stretch - 0.6);
+      const count = 3 + Math.floor(Math.random() * 3);
+      return Array.from({ length: count }, (_, k) => {
+        const along = (k / (count - 1) - 0.5) * size * (stretch - 0.6);
         const across = (Math.random() - 0.5) * size * 0.35;
-        const lx = x + Math.cos(angle) * along - Math.sin(angle) * across;
-        const ly = y + Math.sin(angle) * along + Math.cos(angle) * across;
-        splat(lx, ly, size * (0.65 + Math.random() * 0.3), 1.1, budget);
-      }
+        return {
+          dx: Math.cos(angle) * along - Math.sin(angle) * across,
+          dy: Math.sin(angle) * along + Math.cos(angle) * across,
+          r: 0.65 + Math.random() * 0.3,
+        };
+      });
+    };
+
+    /** A click / tap drops one big ink blob that then spreads on its own. */
+    const drop = (x: number, y: number) => {
+      const size = brush * (0.85 + Math.random() * 0.55);
+      const budget = reduceMotion ? 0 : REACH * (0.4 + Math.random() * 0.6);
+      for (const l of blobShape(size)) splat(x + l.dx, y + l.dy, size * l.r, 1.1, budget);
       lastInput = performance.now();
       schedule();
     };
 
-    // Desktop: hovering never paints. Press and drag erases; a click (no drag) drops ink.
-    // Touch: scrolling never paints; a tap drops ink. Intent first, effect second.
+    // Press and hold still: ink keeps pouring from that spot and the blob grows until release.
+    let pour: { x: number; y: number; t: number; hold: number; base: number; budget: number; lobes: ReturnType<typeof blobShape> } | null = null;
+    function pourStep(now: number) {
+      if (!pour) return false;
+      const held = now - pour.t - pour.hold;
+      if (held < 0) return true;
+      const max = Math.max(innerWidth, 600) * 0.7;
+      const size = Math.min(max, brush * 0.5 + (held / 1000) * brush * 1.2);
+      const k = size / pour.base;
+      for (const l of pour.lobes) splat(pour.x + l.dx * k, pour.y + l.dy * k, size * l.r, 0.08, pour.budget);
+      lastInput = now;
+      return true;
+    }
+
+    // Desktop: hovering never paints. Press and drag erases; a click drops ink; press and hold pours it.
+    // Touch: scrolling never paints; a tap drops ink; press and hold pours it. Intent first, effect second.
     let press: { x: number; y: number; t: number; type: string; dragging: boolean } | null = null;
     let client: { x: number; y: number } | null = null;
     const onFirstUse = () => setUsed(true);
@@ -495,6 +517,11 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       // No text selection while erasing with the mouse.
       if (e.pointerType !== 'touch') e.preventDefault();
       press = { x: e.clientX, y: e.clientY, t: performance.now(), type: e.pointerType, dragging: false };
+      const q = toStage(e.clientX, e.clientY);
+      const hold = e.pointerType === 'touch' ? HOLD_MS.touch : HOLD_MS.mouse;
+      const budget = reduceMotion ? 0 : REACH * 0.8;
+      pour = { x: q.x, y: q.y, t: press.t, hold, base: brush, budget, lobes: blobShape(brush) };
+      schedule();
       onFirstUse();
     };
     const onPointerMove = (e: PointerEvent) => {
@@ -504,6 +531,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       if (!press.dragging) {
         if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) return;
         press.dragging = true;
+        pour = null;
         stage.classList.add('is-drawing');
         pos = toStage(press.x, press.y);
         last = null;
@@ -515,7 +543,10 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       if (!press) return;
       const p = press;
       press = null;
+      const poured = !!pour && performance.now() - pour.t > pour.hold;
+      pour = null;
       if (p.dragging) return lift();
+      if (poured) return;
       const slop = p.type === 'touch' ? TAP_SLOP : DRAG_SLOP;
       const tap = Math.hypot(e.clientX - p.x, e.clientY - p.y) < slop && performance.now() - p.t < TAP_MS;
       if (tap && !isControl(e.target)) {
@@ -526,6 +557,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     const onPointerCancel = () => {
       // The browser took over (e.g. a touch became a scroll): never paint.
       press = null;
+      pour = null;
       lift();
     };
     // Scrolling mid-drag moves the document under a still pointer: re-anchor instead of drawing a streak.
@@ -597,8 +629,8 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       <canvas ref={fringeRef} className="fringe" aria-hidden="true" />
       {!used && (
         <div ref={hintRef} className="hint" aria-hidden="true">
-          <span className="hint-pointer">✦ Hold &amp; drag to erase · click to drop ink</span>
-          <span className="hint-touch">✦ Tap anywhere to drop ink</span>
+          <span className="hint-pointer">✦ Drag to erase · click to drop ink · hold to pour</span>
+          <span className="hint-touch">✦ Tap to drop ink · hold to pour</span>
         </div>
       )}
       <button type="button" className="toggle" onClick={toggle} aria-pressed={mode === 'ink'}>

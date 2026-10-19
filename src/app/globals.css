@@ -617,7 +617,7 @@ body {
 @media (hover: none) {
   .hint {
     top: auto;
-    bottom: 20px;
+    bottom: 68px;
     left: 16px;
     animation: hint-in 0.4s 0.8s both;
   }
@@ -642,6 +642,15 @@ body {
 .stage.is-drawing,
 .stage.is-drawing * {
   user-select: none;
+}
+
+/* Touch: a long press pours ink, so no text-selection loupe or callout menu. */
+@media (hover: none) {
+  .stage {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 
 /* =================== toggle =================== */
