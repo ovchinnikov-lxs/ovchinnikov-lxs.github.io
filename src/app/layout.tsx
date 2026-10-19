@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from 'next';
-import { Tinos } from 'next/font/google';
+import { Geist, Geist_Mono } from 'next/font/google';
 import { profile, SITE_URL } from '@/content';
 import './globals.css';
 
-// Metric-compatible with Times New Roman: looks like a browser default everywhere.
-const serif = Tinos({ subsets: ['latin'], weight: ['400', '700'], style: ['normal', 'italic'], variable: '--font-serif' });
+const sans = Geist({ subsets: ['latin'], variable: '--font-sans' });
+const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
 const title = `${profile.name} — ${profile.title}`;
 const description = `${profile.name}, ${profile.title} (${profile.stack}). 6+ years building production web apps: frontend architecture, performance, CI/CD, multi-brand systems. Based in Portugal.`;
@@ -33,7 +33,7 @@ export const viewport: Viewport = { width: 'device-width', initialScale: 1, them
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={serif.variable}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>{children}</body>
     </html>
   );

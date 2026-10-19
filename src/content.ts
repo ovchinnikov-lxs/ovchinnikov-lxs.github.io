@@ -17,6 +17,7 @@ export type Job = {
   place: string;
   period: string;
   points: string[];
+  stack: string[];
 };
 
 export const profile = {
@@ -42,6 +43,7 @@ export const experience: Job[] = [
     title: 'Frontend Developer (Angular)',
     place: 'Georgia (remote) → Portugal (on-site)',
     period: '2025 – present',
+    stack: ['Angular', 'TypeScript', 'Claude Code', 'Animations', 'Figma'],
     points: [
       'Built an AI-assisted development infrastructure around Claude Code, including custom skills, project rules, and structured documentation, reducing feature delivery time by up to 3× while improving code consistency and onboarding.',
       'Developed pixel-perfect, responsive interfaces with complex animations and unconventional visual concepts, translating Figma designs into production-ready UI.',
@@ -54,6 +56,7 @@ export const experience: Job[] = [
     title: 'Frontend Engineer (Deputy Head of Frontend)',
     place: 'Remote',
     period: '2023 – 2025',
+    stack: ['Nuxt 3', 'Vue', 'Nitro', 'Redis', 'Strapi', 'CI/CD'],
     points: [
       'Migrated the platform from Nuxt 2 to Nuxt 3 using Nuxt layers to support multiple visual variants and a core layer for shared business logic, enabling feature reuse across all platform projects.',
       'Improved website performance by 2.5× through hybrid rendering in Nitro with SWR caching and Redis-based page revalidation, enhancing UX and SEO for critical payloads.',
@@ -70,6 +73,7 @@ export const experience: Job[] = [
     title: 'Frontend Engineer',
     place: 'Moscow (hybrid)',
     period: '2020 – 2023',
+    stack: ['Vue', 'Nuxt', 'TypeScript', 'Leaflet', 'Google Maps'],
     points: [
       'Developed a website builder with 500+ customizable blocks: content, color palettes, UI kits per block, and backend API integrations (real estate layouts, mortgage calculators, booking).',
       'Created an internal styleless UI library and a DX ecosystem — test libraries, linters, and CI/CD templates.',
@@ -79,6 +83,8 @@ export const experience: Job[] = [
     ],
   },
 ];
+
+export const highlights = ['6+ years', 'Oeiras · Lisbon, PT', 'PT residence permit', 'No relocation needed'];
 
 export const skills: { group: string; items: string }[] = [
   { group: 'Frontend', items: 'TypeScript, JavaScript, Vue.js, Nuxt.js, React, Next.js, Angular, Pinia, HTML, CSS/SCSS, Tailwind CSS' },

@@ -223,6 +223,26 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       },
     };
 
+    // A single brush stroke across the hero on load hints that the page can be scratched.
+    let intro = 0;
+    if (!reduceMotion) {
+      const start = performance.now() + 700;
+      const run = (now: number) => {
+        const p = (now - start) / 1100;
+        if (p < 0) {
+          intro = requestAnimationFrame(run);
+          return;
+        }
+        const w = stage.offsetWidth;
+        const x = w * (0.06 + 0.88 * Math.min(1, p));
+        const y = 150 + Math.sin(Math.min(1, p) * Math.PI * 2.2) * 60;
+        stampLine(x, y);
+        if (p < 1) intro = requestAnimationFrame(run);
+        else last = null;
+      };
+      intro = requestAnimationFrame(run);
+    }
+
     const ro = new ResizeObserver(resize);
     ro.observe(stage);
     resize();
@@ -238,6 +258,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       disposed = true;
       ro.disconnect();
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(intro);
       stage.removeEventListener('pointermove', onPointerMove);
       stage.removeEventListener('pointerleave', onPointerLeave);
       stage.removeEventListener('touchstart', onTouchStart);
@@ -266,7 +287,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         {ink}
       </div>
       <button type="button" className="toggle" onClick={toggle} aria-pressed={mode === 'ink'}>
-        {mode === 'raw' ? 'Reveal the design' : 'Back to plain HTML'}
+        {mode === 'raw' ? '✦ Reveal design' : '↺ Raw mode'}
       </button>
     </div>
   );
