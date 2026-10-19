@@ -4,8 +4,8 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 /** Size of one "diffusion" pixel, CSS px. */
 const CELL = 8;
-/** Brush radius, CSS px. */
-const BRUSH = 90;
+/** Brush radius, CSS px: a share of the viewport width, clamped. */
+const brushFor = (viewport: number) => Math.min(240, Math.max(110, viewport * 0.17));
 /** Scratches are permanent; the fringe keeps shimmering this long after the last input, then freezes. */
 const SETTLE_MS = 1600;
 const FIELD_MAX = 1.5;
@@ -73,12 +73,14 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     let last: { x: number; y: number } | null = null;
     let touch: { cx: number; cy: number } | null = null;
     let frame = 0;
+    let brush = brushFor(window.innerWidth);
     let lastInput = 0;
     let intro = 0;
 
     const resize = () => {
       const nc = Math.max(1, Math.ceil(stage.offsetWidth / CELL));
       const nr = Math.max(1, Math.ceil(stage.offsetHeight / CELL));
+      brush = brushFor(window.innerWidth);
       if (nc === cols && nr === rows) return;
       const old = field;
       const oc = cols;
@@ -107,7 +109,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     const splat = (x: number, y: number) => {
       const cx = x / CELL;
       const cy = y / CELL;
-      const rad = BRUSH / CELL;
+      const rad = brush / CELL;
       const s2 = 2 * (rad / 2) ** 2;
       const x0 = Math.max(0, Math.floor(cx - rad));
       const x1 = Math.min(cols - 1, Math.ceil(cx + rad));
@@ -126,7 +128,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
 
     const stroke = (x: number, y: number) => {
       const from = last ?? { x, y };
-      const steps = Math.max(1, Math.ceil(Math.hypot(x - from.x, y - from.y) / (BRUSH * 0.3)));
+      const steps = Math.max(1, Math.ceil(Math.hypot(x - from.x, y - from.y) / (brush * 0.3)));
       for (let i = 1; i <= steps; i++) splat(from.x + ((x - from.x) * i) / steps, from.y + ((y - from.y) * i) / steps);
       last = { x, y };
       lastInput = performance.now();
@@ -300,8 +302,9 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       },
     };
 
-    // A single stroke across the hero on load hints that the page can be scratched.
-    if (!reduceMotion) {
+    // On touch screens a single stroke across the hero hints that the page can be scratched.
+    // Desktop gets no intro: the cursor itself starts scratching right away.
+    if (!reduceMotion && matchMedia('(hover: none)').matches) {
       const start = performance.now() + 700;
       const run = (now: number) => {
         const p = (now - start) / 1100;
