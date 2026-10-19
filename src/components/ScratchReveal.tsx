@@ -13,7 +13,7 @@ const FIELD_MAX = 1.5;
 const SPRING = 0.16;
 const DAMP = 0.8;
 /**
- * Spreading after a stroke, noise-dissolve style: every painted cell gets a travel budget (px)
+ * Ink drops (click / tap) spread, noise-dissolve style: every cell of a drop gets a travel budget (px)
  * and creeps outwards, paying more per cell downwards and much more upwards — so it reaches the
  * screen edges sideways, goes down noticeably less, and up barely. Costs are modulated by a
  * coherent noise field (fingers instead of a diamond), and the front fades out as the budget
@@ -25,9 +25,12 @@ const COST_DOWN = CELL * 3.2;
 const COST_UP = CELL * 9;
 /** Last stretch of the budget over which the front fades out, px. */
 const FADE = 1000;
-/** Spreading waits until the pointer rests for this long, then creeps at ~120 px/s. */
-const SPREAD_DELAY_MS = 400;
-const SPREAD_CHANCE = 0.28;
+/** Chance a cell spreads on a given frame: the front creeps at ~150 px/s. */
+const SPREAD_CHANCE = 0.32;
+/** Pointer travel (px) that turns a press into a drag; less is a click = ink drop. */
+const DRAG_SLOP = 6;
+const TAP_SLOP = 10;
+const TAP_MS = 450;
 const WIPE_MS = 1100;
 /** Edge band (in field units) that gets the iridescent fringe. */
 const FRINGE = 0.11;
@@ -78,9 +81,9 @@ function paletteAt(t: number): [number, number, number] {
  * absolutely on top of it. A per-cell scalar field (painted by the pointer)
  * is dithered against per-cell noise into a pixel clip-path, and the cells on its
  * edge are drawn as a shimmering fringe — like an image being diffused in.
- * Scratches stay and, once the pointer rests, slowly spread (noise dissolve):
- * sideways to the screen edges, down less, up barely.
- * The brush itself has inertia: it trails the pointer and overshoots a little.
+ * Press-and-drag erases (with a little brush inertia); a click or tap drops ink that
+ * spreads on its own (noise dissolve): sideways to the screen edges, down less, up barely.
+ * Hovering and scrolling never paint — the visitor sees "before" and chooses when to act.
  * Only the clip changes, so nothing reflows and text never moves (no CLS).
  */
 export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) {
@@ -88,7 +91,10 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
   const inkRef = useRef<HTMLDivElement>(null);
   const fringeRef = useRef<HTMLCanvasElement>(null);
   const glowRef = useRef<HTMLCanvasElement>(null);
+  const hintRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<Mode>('raw');
+  // The hint stays until the visitor first presses on the page (or uses the toggle).
+  const [used, setUsed] = useState(false);
   const api = useRef<{ wipe: (to: Mode, x: number, y: number) => void } | null>(null);
 
   useEffect(() => {
@@ -120,11 +126,9 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     let aim: { x: number; y: number } | null = null;
     let pos: { x: number; y: number } | null = null;
     const vel = { x: 0, y: 0 };
-    let touch: { cx: number; cy: number } | null = null;
     let frame = 0;
     let brush = brushFor(window.innerWidth);
     let lastInput = 0;
-    let intro = 0;
 
     const resize = () => {
       const nc = Math.max(1, Math.ceil(stage.offsetWidth / CELL));
@@ -165,10 +169,10 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     };
 
     /** Adds a gaussian blob of "denoise" energy around (x, y), in CSS px. */
-    const splat = (x: number, y: number) => {
+    const splat = (x: number, y: number, radius = brush, amount = 0.55, budget = 0) => {
       const cx = x / CELL;
       const cy = y / CELL;
-      const rad = brush / CELL;
+      const rad = radius / CELL;
       const s2 = 2 * (rad / 2) ** 2;
       const x0 = Math.max(0, Math.floor(cx - rad));
       const x1 = Math.min(cols - 1, Math.ceil(cx + rad));
@@ -180,8 +184,9 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         for (let xx = x0; xx <= x1; xx++) {
           const d2 = (xx + 0.5 - cx) ** 2 + (yy + 0.5 - cy) ** 2;
           const i = yy * cols + xx;
-          field[i] = Math.min(FIELD_MAX, field[i] + 0.55 * Math.exp(-d2 / s2));
-          reach[i] = REACH;
+          const k = Math.exp(-d2 / s2);
+          field[i] = Math.min(FIELD_MAX, field[i] + amount * k);
+          if (budget) reach[i] = Math.max(reach[i], budget * Math.min(1, k * 2));
         }
       }
     };
@@ -288,8 +293,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         setStatic(current);
         return;
       }
-      const resting = now - lastInput > SPREAD_DELAY_MS;
-      const grew = !wiping && !reduceMotion && resting && spread(r0, r1);
+      const grew = !wiping && !reduceMotion && spread(r0, r1);
       const h = r1 - r0 + 1;
       const fringeImg = new ImageData(cols, h);
       const fx = fringeImg.data;
@@ -387,42 +391,84 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       fctx.putImageData(fringeImg, 0, 0);
       gctx.clearRect(0, 0, cols, h);
       gctx.drawImage(fringe, 0, 0);
-      if (wiping || calm > 0 || grew || moving || !resting) schedule();
+      if (wiping || calm > 0 || grew || moving) schedule();
     };
 
     function schedule() {
       if (!frame) frame = requestAnimationFrame(draw);
     }
 
-    const release = () => {
+    /** A click / tap drops ink that then spreads on its own. */
+    const drop = (x: number, y: number) => {
+      splat(x, y, brush * 0.55, 1.4, reduceMotion ? 0 : REACH);
+      lastInput = performance.now();
+      schedule();
+    };
+
+    // Desktop: hovering never paints. Press and drag erases; a click (no drag) drops ink.
+    // Touch: scrolling never paints; a tap drops ink. Intent first, effect second.
+    let press: { x: number; y: number; t: number; type: string; dragging: boolean } | null = null;
+    let client: { x: number; y: number } | null = null;
+    const onFirstUse = () => setUsed(true);
+    /** Desktop hint follows the cursor, so the "how" sits right where the action will happen. */
+    const onHover = (e: PointerEvent) => {
+      const h = hintRef.current;
+      if (!h || e.pointerType !== 'mouse') return;
+      h.style.transform = `translate(${e.clientX + 18}px, ${e.clientY + 22}px)`;
+      h.dataset.show = isControl(e.target) ? '' : '1';
+    };
+    const onMouseOut = (e: MouseEvent) => {
+      if (!e.relatedTarget && hintRef.current) hintRef.current.dataset.show = '';
+    };
+    const isControl = (t: EventTarget | null) => t instanceof Element && !!t.closest('a, button');
+
+    const lift = () => {
       aim = pos = last = null;
+      stage.classList.remove('is-drawing');
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0 || isControl(e.target)) return;
+      // No text selection while erasing with the mouse.
+      if (e.pointerType !== 'touch') e.preventDefault();
+      press = { x: e.clientX, y: e.clientY, t: performance.now(), type: e.pointerType, dragging: false };
+      onFirstUse();
     };
     const onPointerMove = (e: PointerEvent) => {
-      if (e.pointerType === 'touch') touch = { cx: e.clientX, cy: e.clientY };
+      client = { x: e.clientX, y: e.clientY };
+      onHover(e);
+      if (!press || press.type === 'touch') return;
+      if (!press.dragging) {
+        if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) return;
+        press.dragging = true;
+        stage.classList.add('is-drawing');
+        pos = toStage(press.x, press.y);
+        last = null;
+      }
       aim = toStage(e.clientX, e.clientY);
       schedule();
     };
-    const onPointerLeave = release;
-    // While a finger scrolls the page, it stays put on screen but travels through the document.
-    const onTouchStart = (e: TouchEvent) => {
-      const t = e.touches[0];
-      touch = { cx: t.clientX, cy: t.clientY };
-      pos = last = null;
-      aim = toStage(t.clientX, t.clientY);
-      schedule();
+    const onPointerUp = (e: PointerEvent) => {
+      if (!press) return;
+      const p = press;
+      press = null;
+      if (p.dragging) return lift();
+      const slop = p.type === 'touch' ? TAP_SLOP : DRAG_SLOP;
+      const tap = Math.hypot(e.clientX - p.x, e.clientY - p.y) < slop && performance.now() - p.t < TAP_MS;
+      if (tap && !isControl(e.target)) {
+        const q = toStage(e.clientX, e.clientY);
+        drop(q.x, q.y);
+      }
     };
-    const onTouchMove = (e: TouchEvent) => {
-      const t = e.touches[0];
-      touch = { cx: t.clientX, cy: t.clientY };
+    const onPointerCancel = () => {
+      // The browser took over (e.g. a touch became a scroll): never paint.
+      press = null;
+      lift();
     };
-    const onTouchEnd = () => {
-      touch = null;
-      release();
-    };
+    // Scrolling mid-drag moves the document under a still pointer: re-anchor instead of drawing a streak.
     const onScroll = () => {
-      if (!touch) return;
-      aim = toStage(touch.cx, touch.cy);
-      schedule();
+      if (!press?.dragging || !client) return;
+      pos = last = null;
+      aim = toStage(client.x, client.y);
     };
 
     api.current = {
@@ -441,47 +487,24 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       },
     };
 
-    // On touch screens a single stroke across the hero hints that the page can be scratched.
-    // Desktop gets no intro: the cursor itself starts scratching right away.
-    if (!reduceMotion && matchMedia('(hover: none)').matches) {
-      const start = performance.now() + 700;
-      const run = (now: number) => {
-        const p = (now - start) / 1100;
-        if (p < 0) {
-          intro = requestAnimationFrame(run);
-          return;
-        }
-        const k = Math.min(1, p);
-        const w = stage.offsetWidth;
-        aim = { x: w * (0.06 + 0.88 * k), y: 150 + Math.sin(k * Math.PI * 2.2) * 60 };
-        schedule();
-        if (p < 1) intro = requestAnimationFrame(run);
-        else if (!touch) release();
-      };
-      intro = requestAnimationFrame(run);
-    }
-
     const ro = new ResizeObserver(resize);
     ro.observe(stage);
     resize();
-    stage.addEventListener('pointermove', onPointerMove);
-    stage.addEventListener('pointerleave', onPointerLeave);
-    stage.addEventListener('touchstart', onTouchStart, { passive: true });
-    stage.addEventListener('touchmove', onTouchMove, { passive: true });
-    window.addEventListener('touchend', onTouchEnd, { passive: true });
-    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    stage.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerCancel);
     window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('mouseout', onMouseOut);
 
     return () => {
+      document.removeEventListener('mouseout', onMouseOut);
       ro.disconnect();
       cancelAnimationFrame(frame);
-      cancelAnimationFrame(intro);
-      stage.removeEventListener('pointermove', onPointerMove);
-      stage.removeEventListener('pointerleave', onPointerLeave);
-      stage.removeEventListener('touchstart', onTouchStart);
-      stage.removeEventListener('touchmove', onTouchMove);
-      window.removeEventListener('touchend', onTouchEnd);
-      window.removeEventListener('touchcancel', onTouchEnd);
+      stage.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('scroll', onScroll);
       api.current = null;
     };
@@ -495,6 +518,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     const y = e.clientY || r.top + r.height / 2;
     api.current?.wipe(next, x, y);
     setMode(next);
+    setUsed(true);
   };
 
   return (
@@ -505,6 +529,12 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       </div>
       <canvas ref={glowRef} className="fringe fringe-glow" aria-hidden="true" />
       <canvas ref={fringeRef} className="fringe" aria-hidden="true" />
+      {!used && (
+        <div ref={hintRef} className="hint" aria-hidden="true">
+          <span className="hint-pointer">✦ Hold &amp; drag to erase · click to drop ink</span>
+          <span className="hint-touch">✦ Tap anywhere to drop ink</span>
+        </div>
+      )}
       <button type="button" className="toggle" onClick={toggle} aria-pressed={mode === 'ink'}>
         {mode === 'raw' ? '✦ Reveal design' : '↺ Raw mode'}
       </button>

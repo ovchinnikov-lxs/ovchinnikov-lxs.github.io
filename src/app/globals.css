@@ -584,6 +584,66 @@ body {
   image-rendering: auto;
 }
 
+/* =================== first-use hint =================== */
+
+.hint {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 11;
+  padding: 7px 12px;
+  font: 12px/1.2 var(--font-mono), ui-monospace, monospace;
+  color: #e4e4e7;
+  white-space: nowrap;
+  pointer-events: none;
+  background: rgb(12 12 14 / 0.88);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 999px;
+  box-shadow: 0 8px 28px -10px rgb(0 0 0 / 0.6);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+@media (hover: hover) {
+  .hint[data-show='1'] {
+    opacity: 1;
+  }
+
+  .hint-touch {
+    display: none;
+  }
+}
+
+@media (hover: none) {
+  .hint {
+    top: auto;
+    bottom: 20px;
+    left: 16px;
+    animation: hint-in 0.4s 0.8s both;
+  }
+
+  .hint-pointer {
+    display: none;
+  }
+}
+
+@keyframes hint-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.stage.is-drawing,
+.stage.is-drawing * {
+  user-select: none;
+}
+
 /* =================== toggle =================== */
 
 .toggle {
@@ -640,6 +700,7 @@ body {
 @media print {
   .ink-layer,
   .fringe,
+  .hint,
   .toggle {
     display: none;
   }
