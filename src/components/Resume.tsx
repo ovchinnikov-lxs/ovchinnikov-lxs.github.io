@@ -65,11 +65,17 @@ export function Resume({ skin }: { skin: Skin }) {
           ))}
         </ul>
         <p className="actions">
-          <a className="btn btn-primary" href={CV_URL} {...external}>
+          <a className="btn btn-primary" href={CV_URL} data-umami-event="open_cv" {...external}>
             Open CV ↗
           </a>
           {contacts.map((c) => (
-            <a key={c.href} className="btn" href={c.href} {...(c.href.startsWith('http') && external)}>
+            <a
+              key={c.href}
+              className="btn"
+              href={c.href}
+              data-umami-event={`click_${c.href.startsWith('mailto:') ? 'email' : c.label.toLowerCase()}`}
+              {...(c.href.startsWith('http') && external)}
+            >
               {c.href.startsWith('mailto:') ? 'Email' : c.label}
             </a>
           ))}
@@ -91,7 +97,7 @@ export function Resume({ skin }: { skin: Skin }) {
           <article key={job.company} className="job">
             <div className="job-head">
               <h3>
-                <a href={job.href} {...external}>
+                <a href={job.href} data-umami-event="click_company" data-umami-event-company={job.company} {...external}>
                   {job.company}
                 </a>
               </h3>
@@ -139,7 +145,7 @@ export function Resume({ skin }: { skin: Skin }) {
           <ul className="certs">
             {certificates.map((c) => (
               <li key={c.href}>
-                <a href={c.href} {...external}>
+                <a href={c.href} data-umami-event="click_certificate" {...external}>
                   {c.label} ↗
                 </a>
               </li>

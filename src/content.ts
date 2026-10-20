@@ -5,6 +5,9 @@ export const SITE_URL = 'https://ovchinnikov-lxs.github.io';
 export const CV_URL =
   'https://docs.google.com/document/d/1JC52-Ez0q8nzUQ4QkAfsGF9dB3anpScE/edit?usp=sharing&ouid=102165632730673724786&rtpof=true&sd=true';
 
+/** Umami Cloud website ID (public, not a secret). Empty disables analytics. */
+export const UMAMI_WEBSITE_ID = '';
+
 /** Flip to false to hide the "open to opportunities" badge. */
 export const OPEN_TO_WORK = true;
 

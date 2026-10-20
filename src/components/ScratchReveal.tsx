@@ -43,6 +43,14 @@ const FRINGE = 0.11;
 
 type Mode = 'raw' | 'ink';
 
+/** Umami custom events; each interaction is reported once per page view to keep the numbers meaningful. */
+const reported = new Set<string>();
+function track(event: string) {
+  if (reported.has(event)) return;
+  reported.add(event);
+  (window as { umami?: { track: (e: string) => void } }).umami?.track(event);
+}
+
 /** AI-ish iridescent palette: violet → blue → cyan → lime → pink, as [r, g, b]. */
 const PALETTE: [number, number, number][] = [
   [167, 139, 250],
@@ -532,6 +540,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) return;
         press.dragging = true;
         pour = null;
+        track('erase');
         stage.classList.add('is-drawing');
         pos = toStage(press.x, press.y);
         last = null;
@@ -546,12 +555,13 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       const poured = !!pour && performance.now() - pour.t > pour.hold;
       pour = null;
       if (p.dragging) return lift();
-      if (poured) return;
+      if (poured) return track('pour_ink');
       const slop = p.type === 'touch' ? TAP_SLOP : DRAG_SLOP;
       const tap = Math.hypot(e.clientX - p.x, e.clientY - p.y) < slop && performance.now() - p.t < TAP_MS;
       if (tap && !isControl(e.target)) {
         const q = toStage(e.clientX, e.clientY);
         drop(q.x, q.y);
+        track('drop_ink');
       }
     };
     const onPointerCancel = () => {
@@ -616,6 +626,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     const y = e.clientY || r.top + r.height / 2;
     api.current?.wipe(next, x, y);
     setMode(next);
+    track(next === 'ink' ? 'reveal_design' : 'raw_mode');
     setUsed(true);
   };
 

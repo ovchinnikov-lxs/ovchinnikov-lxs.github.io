@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { profile, seo, SITE_URL } from '@/content';
+import Script from 'next/script';
+import { profile, seo, SITE_URL, UMAMI_WEBSITE_ID } from '@/content';
 import './globals.css';
 
 const sans = Geist({ subsets: ['latin'], variable: '--font-sans' });
@@ -48,7 +49,18 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        {UMAMI_WEBSITE_ID && (
+          // Cookieless, so no consent banner is needed; data-domains keeps localhost out of the stats.
+          <Script
+            src="https://cloud.umami.is/script.js"
+            data-website-id={UMAMI_WEBSITE_ID}
+            data-domains="ovchinnikov-lxs.github.io"
+            strategy="afterInteractive"
+          />
+        )}
+      </body>
     </html>
   );
 }
