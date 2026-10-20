@@ -39,12 +39,7 @@ const TAP_MS = 450;
 const HOLD_MS = { mouse: 220, touch: 320 };
 /** A dropped blob blooms open over this long, with a soft breathing overshoot. */
 const BLOOM_MS = 900;
-/** Pixel ripples that ring out from a drop: lifetime, count and stagger. */
-const RIPPLE_MS = 1200;
-const RIPPLES = 3;
-const RIPPLE_GAP_MS = 220;
-/** While pouring, a new ripple pulses out this often. */
-const POUR_PULSE_MS = 520;
+
 const WIPE_MS = 600;
 /** Edge band (in field units) that gets the iridescent fringe. */
 const FRINGE = 0.11;
@@ -303,17 +298,6 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
     const draw = (now: number) => {
       frame = 0;
       const moving = stepBrush() || pourStep(now) || bloomStep(now);
-      // Live ripples: radius, thickness and fade for this frame; they widen the band they need drawn.
-      ripples = ripples.filter((r) => now - r.t < RIPPLE_MS);
-      const rings: { x: number; y: number; r: number; a: number }[] = [];
-      for (const r of ripples) {
-        const q = (now - r.t) / RIPPLE_MS;
-        if (q < 0) continue;
-        const rr = r.max * (1 - Math.pow(1 - q, 2.2));
-        rings.push({ x: r.x, y: r.y, r: rr, a: Math.pow(1 - q, 1.4) });
-        band0 = Math.min(band0, Math.max(0, Math.floor(r.y - rr - 2)));
-        band1 = Math.max(band1, Math.min(rows - 1, Math.ceil(r.y + rr + 2)));
-      }
       let wipeR = 0;
       const wipeBand = 16;
       let wiping = false;
@@ -340,7 +324,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       const grew = !wiping && !reduceMotion && spread(r0, r1);
       const h = r1 - r0 + 1;
       const calm = Math.max(0, 1 - (now - lastInput) / SETTLE_MS);
-      const active = wiping || grew || moving || calm > 0 || ripples.length > 0;
+      const active = wiping || grew || moving || calm > 0;
 
       // Full frame: the whole band. Idle frame: just the flicker, on-screen rows only, throttled.
       const full = active || !img || imgR0 !== r0 || img.height !== h || img.width !== cols;
@@ -407,17 +391,6 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
             fx[o + 2] = b;
             fx[o + 3] = 255 * (1 - edge / FRINGE);
           } else fx[o + 3] = 0;
-          // Pixel ripple rings: a dithered, fading iridescent wave.
-          for (const ring of rings) {
-            if (fx[o + 3] > 0) break;
-            const dist = Math.abs(Math.hypot(x - ring.x, y - ring.y) - ring.r);
-            if (dist > 1.3 || (phase[i] / (Math.PI * 2)) < 0.25) continue;
-            const [r, g, b] = paletteAt(t * 6 + ring.r * 0.03 + (x + y) * 0.01);
-            fx[o] = r;
-            fx[o + 1] = g;
-            fx[o + 2] = b;
-            fx[o + 3] = 230 * ring.a * (1 - dist / 1.3);
-          }
         }
         if (run >= 0) row += `M${run * CELL} ${y * CELL}h${(cols - run) * CELL}v${CELL}h${(run - cols) * CELL}z`;
         rowPath[y] = row;
@@ -508,14 +481,8 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
 
     type Bloom = { x: number; y: number; t: number; size: number; budget: number; lobes: ReturnType<typeof blobShape> };
     let blooms: Bloom[] = [];
-    let ripples: { x: number; y: number; t: number; max: number }[] = [];
 
-    const ripple = (x: number, y: number, size: number, count = RIPPLES) => {
-      const now = performance.now();
-      for (let k = 0; k < count; k++) ripples.push({ x: x / CELL, y: y / CELL, t: now + k * RIPPLE_GAP_MS, max: (size * 2.4) / CELL });
-    };
-
-    /** A click / tap drops one big ink blob: it blooms open with pixel ripples ringing out, then spreads on its own. */
+    /** A click / tap drops one big ink blob: it blooms open, then spreads on its own. */
     const drop = (x: number, y: number) => {
       const size = brush * (0.85 + Math.random() * 0.55);
       const budget = reduceMotion ? 0 : REACH * (0.4 + Math.random() * 0.6);
@@ -524,7 +491,6 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
         for (const l of lobes) splat(x + l.dx, y + l.dy, size * l.r, 1.1, budget);
       } else {
         blooms.push({ x, y, t: performance.now(), size, budget, lobes });
-        ripple(x, y, size);
       }
       lastInput = performance.now();
       schedule();
@@ -554,7 +520,6 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       base: number;
       budget: number;
       lobes: ReturnType<typeof blobShape>;
-      pulse: number;
     } | null = null;
     function pourStep(now: number) {
       if (!pour) return false;
@@ -564,10 +529,6 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       const size = Math.min(max, brush * 0.5 + (held / 1000) * brush * 1.2);
       const k = size / pour.base;
       for (const l of pour.lobes) splat(pour.x + l.dx * k, pour.y + l.dy * k, size * l.r, 0.08, pour.budget);
-      if (!reduceMotion && now - pour.pulse > POUR_PULSE_MS) {
-        pour.pulse = now;
-        ripple(pour.x, pour.y, size * 0.7, 1);
-      }
       lastInput = now;
       return true;
     }
@@ -601,7 +562,7 @@ export function ScratchReveal({ raw, ink }: { raw: ReactNode; ink: ReactNode }) 
       const q = toStage(e.clientX, e.clientY);
       const hold = e.pointerType === 'touch' ? HOLD_MS.touch : HOLD_MS.mouse;
       const budget = reduceMotion ? 0 : REACH * 0.8;
-      pour = { x: q.x, y: q.y, t: press.t, hold, base: brush, budget, lobes: blobShape(brush), pulse: 0 };
+      pour = { x: q.x, y: q.y, t: press.t, hold, base: brush, budget, lobes: blobShape(brush) };
       schedule();
       onFirstUse();
     };
