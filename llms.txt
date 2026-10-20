@@ -1,0 +1,68 @@
+# Aleksandr Ovchinnikov
+
+> Aleksandr Ovchinnikov — Frontend Engineer with 6+ years building production web apps with Vue/Nuxt, Angular, React/Next.js and TypeScript. Frontend architecture, performance, CI/CD, multi-brand systems. Based in Lisbon, Portugal — open to new opportunities.
+
+Frontend Engineer · Vue / Nuxt · Angular · React / Next · TypeScript. Oeiras (Lisbon area), Portugal. Portugal residence permit (highly qualified activity) — no relocation needed. Open to new opportunities.
+
+## Profile
+
+- [Portfolio](https://ovchinnikov-lxs.github.io/): this page — summary, experience, skills, education
+- [CV (Google Docs)](https://docs.google.com/document/d/1JC52-Ez0q8nzUQ4QkAfsGF9dB3anpScE/edit?usp=sharing&ouid=102165632730673724786&rtpof=true&sd=true): full résumé
+- [Email](mailto:ovchinnikov.lxs@gmail.com)
+- [LinkedIn](https://www.linkedin.com/in/ovchinnikov-lxs)
+- [GitHub](https://github.com/ovchinnikov-lxs)
+
+## About
+
+Frontend Engineer with 6+ years of experience building production web applications with Vue/Nuxt, Angular, and TypeScript. Strong background in frontend architecture, performance optimization, CI/CD, and scalable multi-brand systems. I use AI-assisted workflows as a force multiplier, not a replacement for engineering judgement. Currently expanding my stack with React and Next.js through hands-on projects — this site is one of them.
+
+## Experience
+
+### BrainRocket — Frontend Developer (Angular) (2025 – present, Georgia (remote) → Portugal (on-site))
+
+- [BrainRocket](https://www.brainrocket.com/)
+- Built an AI-assisted development infrastructure around Claude Code, including custom skills, project rules, and structured documentation, reducing feature delivery time by up to 3× while improving code consistency and onboarding.
+- Developed pixel-perfect, responsive interfaces with complex animations and unconventional visual concepts, translating Figma designs into production-ready UI.
+- Refactored the shared UI system and optimized rendering performance by up to 3×, while reducing hidden UI regressions, code inconsistencies, and implementation errors.
+- Stack: Angular, TypeScript, Claude Code, Animations, Figma
+
+### Wintech — Frontend Engineer (Deputy Head of Frontend) (2023 – 2025, Remote)
+
+- [Wintech](https://wintechplatform.com/)
+- Migrated the platform from Nuxt 2 to Nuxt 3 using Nuxt layers to support multiple visual variants and a core layer for shared business logic, enabling feature reuse across all platform projects.
+- Improved website performance by 2.5× through hybrid rendering in Nitro with SWR caching and Redis-based page revalidation, enhancing UX and SEO for critical payloads.
+- Redesigned CI/CD to support a single build for all brands with runtime variables per project, cutting release delivery from several hours per environment to 10 minutes.
+- Built a custom i18n solution instead of nuxt-i18n with runtime locale-based page generation using a prefix strategy.
+- Integrated Strapi CMS for project customization configs and built a tool converting Tokens Studio JSON into CSS variables with per-locale theming.
+- Temporarily acted as Head of Frontend: planned work with managers and other department heads, reported to the CTO, hired a team member, found a new Head of Frontend, and set up review and release processes.
+- Onboarded 3 colleagues with SMART probation goals, enabling the team to deliver a large number of projects in a short time.
+- Stack: Nuxt 3, Vue, Nitro, Redis, Strapi, CI/CD
+
+### IdaLite — Frontend Engineer (2020 – 2023, Moscow (hybrid))
+
+- [IdaLite](https://idalite.ru/)
+- Developed a website builder with 500+ customizable blocks: content, color palettes, UI kits per block, and backend API integrations (real estate layouts, mortgage calculators, booking).
+- Created an internal styleless UI library and a DX ecosystem — test libraries, linters, and CI/CD templates.
+- Built a customer account platform integrating multiple backend APIs for authentication, profiles, bookings, and domain-specific services.
+- Built interactive real estate maps with Leaflet and Google Maps: custom points of interest, infrastructure, routes, filtering, and map styling.
+- Implemented PDF generation for apartment information sheets used by real estate agents.
+- Stack: Vue, Nuxt, TypeScript, Leaflet, Google Maps
+
+## Skills
+
+- Frontend: TypeScript, JavaScript, Vue.js, Nuxt.js, React, Next.js, Angular, Pinia, HTML, CSS/SCSS, Tailwind CSS
+- Backend: Node.js, NestJS, Nitro, REST APIs, PostgreSQL, Redis, Strapi
+- Architecture & performance: SSR, SSG, SWR, caching, multi-brand architecture, i18n, PWA, profiling, RUM, Lighthouse, WebPageTest
+- AI-assisted workflows: Claude Code, code generation, refactoring, testing, documentation, code review
+- Testing: Vitest, Cypress
+- Delivery: Git, GitHub, GitLab, CI/CD, Vite, Webpack, Storybook
+- Engineering: Code review, mentoring, team leadership, architecture planning
+
+## Education
+
+- A.A. Leonov State Technical University, Korolev — Control and Informatics in Technical Systems (2017 – 2020 · completed 3 years)
+
+## Optional
+
+- [Front End Development Libraries (React) — freeCodeCamp](https://www.freecodecamp.org/certification/fcc-93404d0a-6952-4cf2-905d-84eb9dde8147/front-end-development-libraries-v9)
+- [Responsive Web Design — freeCodeCamp](https://www.freecodecamp.org/certification/fcc-93404d0a-6952-4cf2-905d-84eb9dde8147/responsive-web-design-v9)

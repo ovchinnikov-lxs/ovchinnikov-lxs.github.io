@@ -1,0 +1,54 @@
+1:"$Sreact.fragment"
+2:"/_next/static/chunks/13_an0f2ztgqb.js"
+3:I[77420,["$2"],"default"]
+4:I[44976,["$2"],"default"]
+5:"/_next/static/chunks/0ixf8j7eeuf9u.js"
+6:I[90217,["$5"],""]
+d:I[16242,["$2"],"OutletBoundary"]
+e:"$Sreact.suspense"
+11:"ViewportBoundary"
+12:I[16242,["$2"],"$11"]
+13:"MetadataBoundary"
+14:I[16242,["$2"],"$13"]
+:HL["/_next/static/chunks/43qu63j9rjfg2.css","style"]
+8:X
+b:X
+b:C
+c:[["children",{"s":"__PAGE__","h":160,"d":{"r":["$","$1","c",{"children":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":"$0:t:t:d:r:props:children:1:props:children:props:children:0:props:notFound:0:1:props:style","children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":"$0:t:t:d:r:props:children:1:props:children:props:children:0:props:notFound:0:1:props:children:props:children:1:props:style","children":404}],["$","div",null,{"style":"$0:t:t:d:r:props:children:1:props:children:props:children:0:props:notFound:0:1:props:children:props:children:2:props:style","children":["$","h2",null,{"style":"$0:t:t:d:r:props:children:1:props:children:props:children:0:props:notFound:0:1:props:children:props:children:2:props:children:props:style","children":"This page could not be found."}]}]]}]}]],null,["$","$Ld",null,{"children":["$","$e",null,{"name":"Next.MetadataOutlet","children":"$@f"}]}]]}],"p":"$@10","v":null,"s":"$8"}}]]
+9:[["children",{"s":"/_not-found","h":96,"d":{"r":["$","$1","c",{"children":[null,["$","$L3",null,{"parallelRouterKey":"children","template":["$","$L4",null,{}]}]]}],"p":"$@a","v":"$b","s":"$8"},"c":"$Qc"}]]
+0:{"t":{"t":{"s":"","h":80,"d":{"r":["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/chunks/43qu63j9rjfg2.css","precedence":"next"}],["$","script","script-0",{"src":"/_next/static/chunks/0ixf8j7eeuf9u.js","async":true}]],["$","html",null,{"lang":"en","className":"UdeZcG_variable _1dHVEa_variable","children":["$","body",null,{"children":[["$","$L3",null,{"parallelRouterKey":"children","template":["$","$L4",null,{}],"notFound":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":404}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],[]]}],["$","$L6",null,{"src":"https://cloud.umami.is/script.js","data-website-id":"4647a658-e4e7-480e-9454-ecc989204ec9","data-domains":"ovchinnikov-lxs.github.io","strategy":"afterInteractive"}]]}]}]]}],"p":"$@7","v":null,"s":"$8"},"c":"$Q9"},"h":{"r":["$","$1","h",{"children":[["$","meta",null,{"name":"robots","content":"noindex"}],["$","$L12",null,{"children":[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}],["$","meta","2",{"name":"theme-color","content":"#ffffff"}]]}],["$","$L14",null,{"children":[["$","div",null,{"hidden":true,"children":["$","$e",null,{"name":"Next.Metadata","children":[["$","title","0",{"children":"Aleksandr Ovchinnikov — Frontend Engineer (Vue, Nuxt, Angular, React)"}],["$","meta","1",{"name":"description","content":"Aleksandr Ovchinnikov — Frontend Engineer with 6+ years building production web apps with Vue/Nuxt, Angular, React/Next.js and TypeScript. Frontend architecture, performance, CI/CD, multi-brand systems. Based in Lisbon, Portugal — open to new opportunities."}],["$","meta","2",{"name":"application-name","content":"Aleksandr Ovchinnikov"}],["$","link","3",{"rel":"author","href":"https://ovchinnikov-lxs.github.io"}],["$","meta","4",{"name":"author","content":"Aleksandr Ovchinnikov"}],["$","link","5",{"rel":"manifest","href":"/manifest.webmanifest"}],["$","meta","6",{"name":"keywords","content":"Aleksandr Ovchinnikov,Alexander Ovchinnikov,Александр Овчинников,ovchinnikov-lxs,Frontend Engineer,Frontend Developer,Senior Frontend Developer,Vue.js developer,Nuxt developer,Angular developer,React developer,Next.js developer,TypeScript,Frontend architecture,Web performance,Lisbon,Portugal,Portfolio,CV"}],["$","meta","7",{"name":"creator","content":"Aleksandr Ovchinnikov"}],["$","meta","8",{"name":"publisher","content":"Aleksandr Ovchinnikov"}],["$","meta","9",{"name":"robots","content":"index, follow"}],["$","meta","10",{"name":"googlebot","content":"index, follow, max-video-preview:-1, max-image-preview:large, max-snippet:-1"}],["$","meta","11",{"name":"category","content":"technology"}],["$","link","12",{"rel":"canonical","href":"https://ovchinnikov-lxs.github.io/"}],["$","meta","13",{"name":"format-detection","content":"telephone=no"}],["$","meta","14",{"name":"yandex-verification","content":"66831ef4a1a5e12d"}],["$","meta","15",{"property":"og:title","content":"Aleksandr Ovchinnikov — Frontend Engineer (Vue, Nuxt, Angular, React)"}],["$","meta","16",{"property":"og:description","content":"Aleksandr Ovchinnikov — Frontend Engineer with 6+ years building production web apps with Vue/Nuxt, Angular, React/Next.js and TypeScript. Frontend architecture, performance, CI/CD, multi-brand systems. Based in Lisbon, Portugal — open to new opportunities."}],"$L15","$L16","$L17","$L18","$L19","$L1a","$L1b","$L1c","$L1d","$L1e","$L1f","$L20","$L21","$L22","$L23","$L24","$L25","$L26","$L27","$L28","$L29","$L2a","$L2b","$L2c"]}]}],null]}],"$L2d"]}],"p":"$@2e","v":null,"s":"$8"}},"a":"$@2f","u":"$@30","b":"lw6mEvUbGO2A3xrJzk2U6"}
+31:I[94959,["$2"],"IconMark"]
+f:null
+15:["$","meta","17",{"property":"og:url","content":"https://ovchinnikov-lxs.github.io/"}]
+16:["$","meta","18",{"property":"og:site_name","content":"Aleksandr Ovchinnikov"}]
+17:["$","meta","19",{"property":"og:locale","content":"en_US"}]
+18:["$","meta","20",{"property":"og:image","content":"https://ovchinnikov-lxs.github.io/opengraph-image.png?opengraph-image.00_v4xk0zm_3-.png"}]
+19:["$","meta","21",{"property":"og:image:type","content":"image/png"}]
+1a:["$","meta","22",{"property":"og:image:width","content":"1200"}]
+1b:["$","meta","23",{"property":"og:image:height","content":"630"}]
+1c:["$","meta","24",{"property":"og:image:alt","content":"Aleksandr Ovchinnikov — Frontend Engineer (Vue, Nuxt, Angular, React). Lisbon, Portugal."}]
+1d:["$","meta","25",{"property":"og:type","content":"profile"}]
+1e:["$","meta","26",{"property":"profile:first_name","content":"Aleksandr"}]
+1f:["$","meta","27",{"property":"profile:last_name","content":"Ovchinnikov"}]
+20:["$","meta","28",{"property":"profile:username","content":"ovchinnikov-lxs"}]
+21:["$","meta","29",{"name":"twitter:card","content":"summary_large_image"}]
+22:["$","meta","30",{"name":"twitter:title","content":"Aleksandr Ovchinnikov — Frontend Engineer (Vue, Nuxt, Angular, React)"}]
+23:["$","meta","31",{"name":"twitter:description","content":"Aleksandr Ovchinnikov — Frontend Engineer with 6+ years building production web apps with Vue/Nuxt, Angular, React/Next.js and TypeScript. Frontend architecture, performance, CI/CD, multi-brand systems. Based in Lisbon, Portugal — open to new opportunities."}]
+24:["$","meta","32",{"name":"twitter:image","content":"https://ovchinnikov-lxs.github.io/twitter-image.png?twitter-image.00_v4xk0zm_3-.png"}]
+25:["$","meta","33",{"name":"twitter:image:alt","content":"Aleksandr Ovchinnikov — Frontend Engineer (Vue, Nuxt, Angular, React). Lisbon, Portugal."}]
+26:["$","meta","34",{"name":"twitter:image:type","content":"image/png"}]
+27:["$","meta","35",{"name":"twitter:image:width","content":"1200"}]
+28:["$","meta","36",{"name":"twitter:image:height","content":"630"}]
+29:["$","link","37",{"rel":"icon","href":"/favicon.ico?favicon.2blzybin8q218.ico","sizes":"48x48","type":"image/x-icon"}]
+2a:["$","link","38",{"rel":"icon","href":"/icon.png?icon.3kq15911pf51q.png","sizes":"512x512","type":"image/png"}]
+2b:["$","link","39",{"rel":"apple-touch-icon","href":"/apple-icon.png?apple-icon.0vt-vvf0qnhsi.png","sizes":"180x180","type":"image/png"}]
+2c:["$","$L31","40",{}]
+2d:["$","meta",null,{"name":"next-size-adjust","content":""}]
+8:300
+30:true
+8:C
+2f:0
+a:"$undefined"
+7:"$undefined"
+10:"$undefined"
+2e:"$undefined"
