@@ -8,6 +8,7 @@ import {
   highlights,
   OPEN_TO_WORK,
   profile,
+  projects,
   skills,
 } from '@/content';
 
@@ -116,9 +117,38 @@ export function Resume({ skin }: { skin: Skin }) {
         ))}
       </section>
 
+      <section className="card" aria-labelledby={id('projects')}>
+        <h2 className="card-label" id={id('projects')}>
+          <span className="num">03</span> Projects
+        </h2>
+        {projects.map((p) => (
+          <article key={p.name} className="job">
+            <div className="job-head">
+              <h3>
+                {p.href ? (
+                  <a href={p.href} data-umami-event="click_project" data-umami-event-project={p.name} {...external}>
+                    {p.name} ↗
+                  </a>
+                ) : (
+                  p.name
+                )}
+              </h3>
+              <span className="period">{p.period}</span>
+            </div>
+            <p className="job-title">{p.tagline}</p>
+            <ul className="points">
+              {p.points.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
+            <Chips items={p.stack} small />
+          </article>
+        ))}
+      </section>
+
       <section className="card" aria-labelledby={id('skills')}>
         <h2 className="card-label" id={id('skills')}>
-          <span className="num">03</span> Skills
+          <span className="num">04</span> Skills
         </h2>
         <dl className="skills">
           {skills.map((s) => (
@@ -134,7 +164,7 @@ export function Resume({ skin }: { skin: Skin }) {
 
       <section className="card" aria-labelledby={id('education')}>
         <h2 className="card-label" id={id('education')}>
-          <span className="num">04</span> Education
+          <span className="num">05</span> Education
         </h2>
         <div className="edu">
           <div>

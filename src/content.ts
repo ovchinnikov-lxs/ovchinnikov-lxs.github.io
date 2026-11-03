@@ -136,6 +136,43 @@ export const education = {
   period: '2017 – 2020 · completed 3 years',
 };
 
+export type Project = {
+  name: string;
+  href?: string;
+  tagline: string;
+  period: string;
+  points: string[];
+  stack: string[];
+};
+
+// Numbers are real: counted from the PetPoint repository (main) and GitHub issues on 3 Nov 2026.
+export const projects: Project[] = [
+  {
+    name: 'PetPoint',
+    href: 'https://pet-point.app',
+    tagline: 'SaaS CRM for grooming businesses',
+    period: 'Oct 2026 – present',
+    points: [
+      'Multi-tenant platform: CRM for salons, staff, clients, pets and bookings; salon websites with self-service online booking; platform site with Stripe subscriptions. Mobile-first, in English, Russian, Portuguese and Spanish.',
+      'Built in 18 days: ~72k lines of TypeScript, ~44k lines of tests (2,190+ test cases, 59 Playwright E2E suites), 50 database migrations, 156 roadmap issues closed.',
+      'Run as an AI-native team that I direct: role-scoped Claude Code sessions (dev, manager, growth, research, legal, brand, support, finance) plus reviewer, CI and security subagents, all held to my architecture, invariants, project rules, git hooks and a test-first Definition of Done. Product, architecture and releases are mine.',
+    ],
+    stack: ['Next.js', 'TypeScript', 'tRPC', 'Drizzle', 'PostgreSQL', 'better-auth', 'Stripe', 'next-intl', 'Playwright', 'Claude Code'],
+  },
+  {
+    name: 'Convert Any',
+    href: 'https://convert-any-one.vercel.app',
+    tagline: 'In-browser image, video and document converter — nothing is uploaded',
+    period: 'Oct 2026',
+    points: [
+      'ffmpeg.wasm, libheif and libvips compiled to WebAssembly run on the user’s device: iPhone HEIC in any browser, animated WebP/GIF/APNG, video compression by quality or target size, DOCX/Markdown/spreadsheets ↔ PDF.',
+      'Multi-threaded ffmpeg via cross-origin isolation (≈2× faster), installable offline PWA, pixel-level before/after comparison, English and Russian UI.',
+      'Taken from idea to release in 10 days with Claude Code as the implementation team.',
+    ],
+    stack: ['React', 'TypeScript', 'Vite', 'WebAssembly', 'ffmpeg.wasm', 'PWA'],
+  },
+];
+
 export const certificates: Link[] = [
   {
     label: 'Front End Development Libraries (React) — freeCodeCamp',

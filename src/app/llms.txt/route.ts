@@ -1,4 +1,16 @@
-import { certificates, contacts, CV_URL, education, experience, OPEN_TO_WORK, profile, seo, SITE_URL, skills } from '@/content';
+import {
+  certificates,
+  contacts,
+  CV_URL,
+  education,
+  experience,
+  OPEN_TO_WORK,
+  profile,
+  projects,
+  seo,
+  SITE_URL,
+  skills,
+} from '@/content';
 
 export const dynamic = 'force-static';
 
@@ -29,6 +41,16 @@ export function GET() {
       `- [${job.company}](${job.href})`,
       ...job.points.map((p) => `- ${p}`),
       `- Stack: ${job.stack.join(', ')}`,
+      '',
+    ]),
+    '## Projects',
+    '',
+    ...projects.flatMap((p) => [
+      `### ${p.name} — ${p.tagline} (${p.period})`,
+      '',
+      ...(p.href ? [`- [${p.name}](${p.href})`] : []),
+      ...p.points.map((x) => `- ${x}`),
+      `- Stack: ${p.stack.join(', ')}`,
       '',
     ]),
     '## Skills',
