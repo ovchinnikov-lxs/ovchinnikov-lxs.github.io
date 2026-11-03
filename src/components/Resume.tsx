@@ -126,7 +126,7 @@ export function Resume({ skin }: { skin: Skin }) {
             <div className="job-head">
               <h3>
                 {p.href ? (
-                  <a href={p.href} data-umami-event="click_project" data-umami-event-project={p.name} {...external}>
+                  <a href={p.href} data-umami-event={p.event} {...external}>
                     {p.name} ↗
                   </a>
                 ) : (
@@ -188,7 +188,7 @@ export function Resume({ skin }: { skin: Skin }) {
         <span>
           © {new Date().getFullYear()} {profile.name}
         </span>
-        <a href="https://github.com/ovchinnikov-lxs/ovchinnikov-lxs.github.io" {...external}>
+        <a href="https://github.com/ovchinnikov-lxs/ovchinnikov-lxs.github.io" data-umami-event="click_source" {...external}>
           Next.js + Tailwind · source ↗
         </a>
       </footer>

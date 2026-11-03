@@ -139,6 +139,8 @@ export const education = {
 export type Project = {
   name: string;
   href?: string;
+  /** Umami event name for clicks on the project link. */
+  event: string;
   tagline: string;
   period: string;
   points: string[];
@@ -150,6 +152,7 @@ export const projects: Project[] = [
   {
     name: 'PetPoint',
     href: 'https://pet-point.app',
+    event: 'click_petpoint',
     tagline: 'SaaS CRM for grooming businesses',
     period: 'Oct 2026 – present',
     points: [
@@ -162,6 +165,7 @@ export const projects: Project[] = [
   {
     name: 'Convert Any',
     href: 'https://convert-any-one.vercel.app',
+    event: 'click_convert_any',
     tagline: 'In-browser image, video and document converter — nothing is uploaded',
     period: 'Oct 2026',
     points: [
