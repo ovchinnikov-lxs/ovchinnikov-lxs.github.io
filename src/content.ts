@@ -3,7 +3,7 @@
 export const SITE_URL = 'https://ovchinnikov-lxs.github.io';
 
 export const CV_URL =
-  'https://docs.google.com/document/d/1JC52-Ez0q8nzUQ4QkAfsGF9dB3anpScE/edit?usp=sharing&ouid=102165632730673724786&rtpof=true&sd=true';
+  'https://docs.google.com/document/d/1y_WQloALPbGRRNmOQBKpvIOMgBNzrhYv5JKtXe2Zlno/edit?usp=sharing';
 
 /** Umami Cloud website ID (public, not a secret). Empty disables analytics. */
 export const UMAMI_WEBSITE_ID = '4647a658-e4e7-480e-9454-ecc989204ec9';
